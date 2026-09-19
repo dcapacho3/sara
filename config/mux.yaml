@@ -1,5 +1,11 @@
 twist_mux:
   ros__parameters:
+    # This twist_mux release defaults use_stamped to true (TwistStamped on
+    # every input/output topic). Every publisher and subscriber in this
+    # repo (speed_limit.py, naive_obstacle_avoidance.py, joy_teleop.py,
+    # Nav2's controller_server, ...) uses plain Twist, so without this the
+    # type mismatch means messages never actually connect.
+    use_stamped: false
     topics:
       navigation:
         topic   : cmd_vel
