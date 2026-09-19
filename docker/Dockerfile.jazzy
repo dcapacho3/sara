@@ -1,0 +1,123 @@
+# ==============================================================================
+# SARA / turtlemart Dockerfile — ROS 2 Jazzy + new Gazebo (Harmonic)
+# ==============================================================================
+
+
+FROM osrf/ros:jazzy-desktop-full
+
+ENV ROS_DISTRO=jazzy
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+# ------------------------------------------------------------------------------
+# 1: System tools
+# ------------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    tmux \
+    htop \
+    sqlite3 \
+    python3-pip \
+    python3-argcomplete \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-vcstool \
+    build-essential \
+    cmake \
+    mesa-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------------------------
+# 2: Navigation, localization, SLAM (Nav2 stack turtlemart's params/launch use)
+# ------------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-navigation2 \
+    ros-${ROS_DISTRO}-nav2-bringup \
+    ros-${ROS_DISTRO}-robot-localization \
+    ros-${ROS_DISTRO}-tf-transformations \
+    ros-${ROS_DISTRO}-cartographer \
+    ros-${ROS_DISTRO}-cartographer-ros \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------------------------
+# 3: Robot description, TF, RViz, twist_mux, joystick
+# ------------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-xacro \
+    ros-${ROS_DISTRO}-joint-state-publisher \
+    ros-${ROS_DISTRO}-joint-state-publisher-gui \
+    ros-${ROS_DISTRO}-robot-state-publisher \
+    ros-${ROS_DISTRO}-rviz2 \
+    ros-${ROS_DISTRO}-tf2 \
+    ros-${ROS_DISTRO}-tf2-ros \
+    ros-${ROS_DISTRO}-tf2-tools \
+    ros-${ROS_DISTRO}-twist-mux \
+    ros-${ROS_DISTRO}-joy \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------------------------
+# 4: New Gazebo (Harmonic) — replaces gazebo_ros_pkgs / gazebo_ros2_control
+# ------------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-ros-gz-sim \
+    ros-${ROS_DISTRO}-ros-gz-bridge \
+    ros-${ROS_DISTRO}-ros-gz-image \
+    ros-${ROS_DISTRO}-gz-ros2-control \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------------------------
+# 5: TurtleBot3 base packages (real-hardware driver path; harmless in sim)
+# ------------------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-turtlebot3 \
+    ros-${ROS_DISTRO}-turtlebot3-msgs \
+    ros-${ROS_DISTRO}-dynamixel-sdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------------------------
+# 6: Python packages turtlemart's GUIs/nodes import
+# ------------------------------------------------------------------------------
+RUN pip3 install --break-system-packages transforms3d customtkinter
+
+# ------------------------------------------------------------------------------
+# 7: User setup. USERNAME is a generic in-container account, not tied to any
+# host user. 
+# ------------------------------------------------------------------------------
+ARG USERNAME=ros
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+RUN (getent passwd $USER_UID | cut -d: -f1 | xargs -r userdel -r) \
+    && (getent group $USER_GID | cut -d: -f1 | xargs -r groupdel) \
+    && groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && apt-get update \
+    && apt-get install -y sudo \
+    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV WORKSPACE=/home/${USERNAME}/ros_ws
+
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/${USERNAME}/.bashrc && \
+    echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> /home/${USERNAME}/.bashrc && \
+    echo "export TURTLEBOT3_MODEL=waffle" >> /home/${USERNAME}/.bashrc && \
+    echo "export GZ_SIM_RESOURCE_PATH=${WORKSPACE}/src/turtlemart/models:${WORKSPACE}/src/turtlemart/worlds:\${GZ_SIM_RESOURCE_PATH}" >> /home/${USERNAME}/.bashrc
+
+RUN mkdir -p /home/${USERNAME}/.rviz2 ${WORKSPACE}/src \
+    && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
+
+USER ${USERNAME}
+WORKDIR ${WORKSPACE}
+
+RUN rosdep update
+
+ENV TURTLEBOT3_MODEL=waffle
+
+CMD ["/bin/bash"]

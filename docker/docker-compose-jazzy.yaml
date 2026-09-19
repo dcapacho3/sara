@@ -1,0 +1,35 @@
+# On a machine with an NVIDIA GPU and the
+# nvidia container runtime installed, enable it with:
+#   export DOCKER_RUNTIME=nvidia
+services:
+  sara_jazzy:
+    build:
+      context: .
+      dockerfile: Dockerfile.jazzy
+      network: host
+      args:
+        USER_UID: ${CONTAINER_UID:-1000}
+        USER_GID: ${CONTAINER_GID:-1000}
+    image: sara:jazzy
+    container_name: sara_jazzy
+    runtime: ${DOCKER_RUNTIME:-runc}
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - RCUTILS_COLORIZED_OUTPUT=1
+      - TURTLEBOT3_MODEL=waffle
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
+      - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-all}
+
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ~/.ros:/home/ros/.ros
+      - ~/.rviz2:/home/ros/.rviz2
+      - ../..:/home/ros/ros_ws/src:rw
+
+    network_mode: host
+    stdin_open: true
+    tty: true
+
+    restart: unless-stopped
