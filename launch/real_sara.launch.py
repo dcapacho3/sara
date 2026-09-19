@@ -15,8 +15,8 @@ import os
 def generate_launch_description():
     # Configuración de rutas a archivos y carpetas para el robot SARA
     # Define las ubicaciones de los modelos y configuraciones necesarias
-    pkg_share = launch_ros.substitutions.FindPackageShare(package='turtlemart').find('turtlemart')
-    default_model_path = os.path.join(pkg_share, 'models/turtlemart.urdf.xacro')
+    pkg_share = launch_ros.substitutions.FindPackageShare(package='sara').find('sara')
+    default_model_path = os.path.join(pkg_share, 'models/sara.urdf.xacro')
     default_rviz_config_path = os.path.join(pkg_share, 'rviz/urdf_config.rviz')
     
     

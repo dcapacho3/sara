@@ -1,6 +1,6 @@
 # Autor: David Capacho Parra
 # Descripción: SLAM con Cartographer sobre SARA en simulación (Jazzy + Gazebo
-# nuevo, Harmonic). Mismo patrón world/spawn/bridge que turtlemart.launch.py
+# nuevo, Harmonic). Mismo patrón world/spawn/bridge que sara.launch.py
 # y navagv.launch.py: gz sim, robot_state_publisher publica robot_description,
 # el robot se genera (spawn) desde ese mismo topic, y un puente ROS<->Gazebo
 # Transport conecta cmd_vel/odom/scan/imu/tf/clock.
@@ -20,10 +20,10 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
 
-    pkg_share = get_package_share_directory('turtlemart')
-    default_model_path = os.path.join(pkg_share, 'models', 'turtlemart.urdf.xacro')
+    pkg_share = get_package_share_directory('sara')
+    default_model_path = os.path.join(pkg_share, 'models', 'sara.urdf.xacro')
     default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'cartographer_config.rviz')
-    world_file_name = 'turtlemart_world/Supermarket.world'
+    world_file_name = 'sara_world/Supermarket.world'
     world_path = os.path.join(pkg_share, 'worlds', world_file_name)
     models_path = os.path.join(pkg_share, 'models')
     worlds_path = os.path.join(pkg_share, 'worlds')
@@ -130,7 +130,7 @@ def generate_launch_description():
                 package='ros_gz_sim',
                 executable='create',
                 arguments=[
-                    '-name', 'turtlemart',
+                    '-name', 'sara',
                     '-topic', 'robot_description',
                     '-x', '0.5', '-y', '-3.0', '-z', '0.1',
                     '-Y', '1.58',

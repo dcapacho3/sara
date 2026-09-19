@@ -80,7 +80,7 @@ class AutonomousNavigator:
     def get_product_locations(self):
         # Método para obtener las ubicaciones de los productos desde la base de datos
         # Recupera las coordenadas de los productos seleccionados y añade la ubicación de la caja
-        db_dir = get_source_db_path('turtlemart', 'products.db')
+        db_dir = get_source_db_path('sara', 'products.db')
         conn = sqlite3.connect(db_dir)
         cursor = conn.cursor()
         cursor.execute('SELECT name, x, y FROM selected_products')

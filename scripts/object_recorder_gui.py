@@ -400,7 +400,7 @@ class SecondWindow(ctk.CTkToplevel):
         # Método para configurar y mostrar el logo
         # Carga y muestra la imagen del logo en el frame proporcionado
         try:
-            pkg_dir = get_package_share_directory('turtlemart')
+            pkg_dir = get_package_share_directory('sara')
             image_path = os.path.join(pkg_dir, 'images/userlogo.png')
             if os.path.exists(image_path):
                 img = Image.open(image_path)
@@ -639,9 +639,9 @@ class SecondWindow(ctk.CTkToplevel):
         
         # 2. Lanzar el nodo de navegación/localización
         if self.mode == "Real":
-            nav_cmd = "ros2 launch turtlemart real_nav.launch.py map_yaml:=labrobfinal_mask.yaml"
+            nav_cmd = "ros2 launch sara real_nav.launch.py map_yaml:=labrobfinal_mask.yaml"
         else:
-            nav_cmd = "ros2 launch turtlemart navagv.launch.py map_yaml:=supermarket_map.yaml"
+            nav_cmd = "ros2 launch sara navagv.launch.py map_yaml:=supermarket_map.yaml"
             
         nav_process = subprocess.Popen(
             nav_cmd,
@@ -661,7 +661,7 @@ class SecondWindow(ctk.CTkToplevel):
     def launch_mux(self):
         # Método para lanzar el multiplexor de control
         # Inicia el nodo de mux para el control del robot
-        cmd = "ros2 launch turtlemart mux.launch.py"
+        cmd = "ros2 launch sara mux.launch.py"
         process = subprocess.Popen(
             cmd,
             shell=True,
@@ -681,7 +681,7 @@ class SecondWindow(ctk.CTkToplevel):
     def launch_basic_control(self):
         # Método para lanzar el control básico
         # Inicia el nodo de control remoto del robot
-        cmd = "ros2 launch turtlemart basic_control.launch.py"
+        cmd = "ros2 launch sara basic_control.launch.py"
         process = subprocess.Popen(
             cmd,
             shell=True,
@@ -808,7 +808,7 @@ class SecondWindow(ctk.CTkToplevel):
             return
             
         try:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             connection = sqlite3.connect(db_dir)
             cursor = connection.cursor()
             
@@ -918,7 +918,7 @@ class SecondWindow(ctk.CTkToplevel):
     def load_map(self):
         # Método para cargar el mapa desde el archivo
         # Lee el archivo YAML del mapa y la imagen correspondiente
-        bringup_dir = get_package_share_directory('turtlemart')
+        bringup_dir = get_package_share_directory('sara')
         if self.mode == "Real":
             map_yaml_path = os.path.join(bringup_dir, 'maps/labrobfinal_mask.yaml')
         else:

@@ -6,7 +6,9 @@
 
 SARA guides people through a store. On a shared touchscreen app, a customer picks products to buy, or a worker checks off the shelf spots for items that ended up in the wrong place. Either way, the robot works out an efficient order to visit those points, navigates to each one on its own, and stops so the person can act (pick up a product, or put one back) before moving on. A weight sensor in the basket enforces a hard safety cutoff, reactive lidar avoidance runs alongside the planned navigation, and a separate app lets store staff manage the product catalog itself.
 
-This repository is the reference implementation for my undergraduate thesis in Mechatronics Engineering at Universidad Autónoma de Occidente (Cali, Colombia):
+This repository is where SARA keeps evolving: new capabilities, new safety modes, and ongoing research beyond the original thesis. It shares full history with [`dcapacho3/turtlemart`](https://github.com/dcapacho3/turtlemart), which stays frozen as the exact reference implementation (ROS 2 Humble, Gazebo Classic) described in the thesis below — clone that one if you need to reproduce the thesis results as published. This repo runs on **ROS 2 Jazzy and the new Gazebo (Harmonic)**, and is where active development continues.
+
+The original implementation is documented in my undergraduate thesis in Mechatronics Engineering at Universidad Autónoma de Occidente (Cali, Colombia):
 
 > Capacho Parra, D. (2025). *Desarrollo de un sistema robótico para la conducción autónoma de carros de compra en entornos estructurados* (Undergraduate thesis). Universidad Autónoma de Occidente. [hdl.handle.net/10614/16136](https://hdl.handle.net/10614/16136)
 
@@ -70,7 +72,7 @@ The project originally targeted a **myAGV2023 Pi**, an AGV with mecanum wheels f
 
 ## Results
 
-Measured over controlled lab trials (see the thesis for full methodology):
+Measured over controlled lab trials on the original ROS 2 Humble / Gazebo Classic implementation (see the thesis for full methodology). These are the thesis-reported numbers, not yet re-measured on this repo's Jazzy port:
 
 | Metric | Result |
 |---|---|
@@ -114,34 +116,33 @@ worlds/       Gazebo world files (supermarket, cafe, warehouse, etc.)
 rviz/         RViz configs
 config/       EKF, joystick, twist_mux configuration
 database/     SQLite product database
+docker/       Dockerfile and Compose file for the Jazzy dev environment
 docs/img/     Figures used in this README
 ```
 
 ## Getting started
 
-**Requirements:** Ubuntu 22.04, ROS 2 Humble, Python 3.10.
+**Requirements:** Docker with Compose, and a GPU with `/dev/dri` available (used for both Gazebo and RViz2 rendering inside the container). No local ROS install needed — everything runs inside the container.
 
 ```bash
-# ROS 2 packages
-sudo apt install ros-humble-desktop-full ros-humble-rmw-cyclonedds-cpp \
-  ros-humble-robot-localization ros-humble-twist-mux \
-  ros-humble-navigation2 ros-humble-nav2-bringup ros-humble-slam-toolbox \
-  ros-humble-cartographer ros-humble-cartographer-ros \
-  ros-humble-turtlebot3 ros-humble-turtlebot3-msgs ros-humble-dynamixel-sdk \
-  ros-humble-tf-transformations ros-humble-gazebo-ros-pkgs sqlite3
+mkdir -p ~/sara_ws/src && cd ~/sara_ws/src
+git clone https://github.com/dcapacho3/sara.git
 
-# Python packages
-sudo pip3 install transforms3d customtkinter
+cd sara/docker
+docker compose -f docker-compose-jazzy.yaml build
+docker compose -f docker-compose-jazzy.yaml up -d
+docker compose -f docker-compose-jazzy.yaml exec sara_jazzy bash
 ```
+
+Inside the container:
 
 ```bash
-mkdir -p ~/superdev_ws/src && cd ~/superdev_ws/src
-git clone https://github.com/dcapacho3/turtlemart.git
-cd ~/superdev_ws && colcon build && source install/setup.bash
-
-# So Gazebo can find the store/robot models:
-echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/superdev_ws/src/turtlemart/models' >> ~/.bashrc
+cd ~/ros_ws
+colcon build --symlink-install
+source install/setup.bash
 ```
+
+The image already sets `GZ_SIM_RESOURCE_PATH` so Gazebo can find the store/robot models — no manual environment setup needed.
 
 `saragui.py` and `workergui.py` each have a `self.show_mode_selector` flag. Set it to `True` to expose a Real/Simulation toggle on the welcome screen instead of hardcoding one target.
 
@@ -150,8 +151,8 @@ echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/superdev_ws/src/turtlemart/m
 You don't launch navigation separately, the app does it for you:
 
 ```bash
-ros2 run turtlemart saragui.py     # customer / worker select and navigate flow
-ros2 run turtlemart workergui.py   # catalog manager
+ros2 run sara saragui.py     # customer / worker select and navigate flow
+ros2 run sara workergui.py   # catalog manager
 ```
 
 When you select destinations and start the flow, `saragui.py` (through `base_navgui.py`) launches `mux.launch.py` and, depending on the Real/Simulation mode selected on the welcome screen, either `real_nav.launch.py` or `navagv.launch.py`, as background processes. The full `twist_mux` plus Nav2 stack comes up automatically on first use instead of needing to be started by hand.
@@ -159,24 +160,24 @@ When you select destinations and start the flow, `saragui.py` (through `base_nav
 **Manual override:** gamepad teleop is already running once the app has launched the control stack. It doesn't need to be started separately, it just sits there listening for the controller's B button, which toggles whether teleop commands override autonomous navigation. Keyboard teleop is the one thing you do start yourself, in its own terminal:
 
 ```bash
-ros2 run turtlemart key_teleop.py
+ros2 run sara key_teleop.py
 ```
 
 **Building a new map** (only needed if you change the physical or simulated layout):
 
 ```bash
-ros2 launch turtlemart cartographerturtle.launch.py   # simulation
-ros2 launch turtlemart real_cartographer.launch.py    # real robot
+ros2 launch sara cartographerturtle.launch.py   # simulation
+ros2 launch sara real_cartographer.launch.py    # real robot
 
 # once satisfied with the mapped area:
-ros2 run nav2_map_server map_saver_cli -f ~/superdev_ws/src/turtlemart/maps/<name>
+ros2 run nav2_map_server map_saver_cli -f ~/ros_ws/src/sara/maps/<name>
 ```
 
 The saved map's filename then needs to be pointed to from `navagv.launch.py` (simulation) or `real_nav.launch.py` (real robot), and from the `load_map()` path in `scripts/base_navgui.py`.
 
 ## Citation
 
-If you build on this work, please cite:
+If you build on this work, please cite the original thesis this project is based on:
 
 ```bibtex
 @misc{capacho2025sara,

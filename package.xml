@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>turtlemart</name>
+  <name>sara</name>
   <version>0.0.0</version>
   <description>SARA (Smart Autonomous Retail Assistant): ROS2 autonomous shopping-cart robot for structured retail environments, with Nav2-based navigation, weight-based safety interlock, and customer/worker GUIs. Runs identically in Gazebo simulation and on a real mecanum-wheel AGV.</description>
   <maintainer email="dcapacho3@gmail.com">David Capacho Parra</maintainer>

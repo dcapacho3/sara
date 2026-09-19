@@ -24,7 +24,7 @@ def generate_launch_description():
     # Implementa un algoritmo simple para detectar y evitar colisiones
     # mientras el robot SARA está en movimiento
     obstacle_node = Node(
-            package='turtlemart',
+            package='sara',
             executable='naive_obstacle_avoidance.py'
          )
 
@@ -32,7 +32,7 @@ def generate_launch_description():
     # Permite el control manual del robot SARA mediante un joystick,
     # traduciendo las señales del control a comandos de velocidad
     joy_teleop_node = Node(
-            package='turtlemart',
+            package='sara',
             executable='joy_teleop.py'
          )
     

@@ -854,7 +854,7 @@ class UnifiedNavigationWindow(ctk.CTk):
         self.update_map_plot()
         
         # Cargar y configurar la imagen del robot
-        pkg_dir = get_package_share_directory('turtlemart')
+        pkg_dir = get_package_share_directory('sara')
         robot_image_path = os.path.join(pkg_dir, 'images/shoppingcart.png')
         self.robot_image = plt.imread(robot_image_path)
         robot_width_data = self.robot_width / self.resolution
@@ -886,7 +886,7 @@ class UnifiedNavigationWindow(ctk.CTk):
     def load_map(self):
         # Método para cargar el mapa desde un archivo YAML
         # Lee el archivo de configuración del mapa y carga la imagen correspondiente
-        bringup_dir = get_package_share_directory('turtlemart')
+        bringup_dir = get_package_share_directory('sara')
         if self.nav_mode == "Real":
             map_yaml_path = os.path.join(bringup_dir, 'maps/labrobfinal_mask.yaml')
         else:
@@ -925,7 +925,7 @@ class UnifiedNavigationWindow(ctk.CTk):
     def get_product_locations(self):
         # Método para obtener las ubicaciones de los productos de la base de datos
         # Consulta la base de datos para obtener nombres y coordenadas
-        db_dir = get_source_db_path('turtlemart', 'products.db')
+        db_dir = get_source_db_path('sara', 'products.db')
         conn = sqlite3.connect(db_dir)
         cursor = conn.cursor()
         cursor.execute('SELECT name, x, y FROM selected_products')
@@ -1023,13 +1023,13 @@ class UnifiedNavigationWindow(ctk.CTk):
         # Método para lanzar los archivos de configuración ROS2
         # Inicia los procesos necesarios según el modo de navegación
         launch_commands = [
-            "ros2 launch turtlemart mux.launch.py",
+            "ros2 launch sara mux.launch.py",
         ]
 
         if self.nav_mode == "Real":
-            launch_commands.append("ros2 launch turtlemart real_nav.launch.py")
+            launch_commands.append("ros2 launch sara real_nav.launch.py")
         else:
-            launch_commands.append("ros2 launch turtlemart navagv.launch.py")
+            launch_commands.append("ros2 launch sara navagv.launch.py")
         
         devnull = open(os.devnull, 'w')
         for cmd in launch_commands:
@@ -1046,7 +1046,7 @@ class UnifiedNavigationWindow(ctk.CTk):
     def launch_basic_control(self):
         # Método para lanzar el control básico del robot
         # Inicia y monitorea el proceso de control básico
-        cmd = "ros2 launch turtlemart basic_control.launch.py"
+        cmd = "ros2 launch sara basic_control.launch.py"
         process = subprocess.Popen(
             cmd,
             shell=True,
@@ -1535,7 +1535,7 @@ class UnifiedNavigationWindow(ctk.CTk):
             font=self.PRODUCT_TITLE_FONT
         )
         title_label.pack(pady=(10, 15))
-        db_dir = get_source_db_path('turtlemart', 'products.db')
+        db_dir = get_source_db_path('sara', 'products.db')
         conn = sqlite3.connect(db_dir)
         cursor = conn.cursor()
         cursor.execute('SELECT name FROM selected_products')

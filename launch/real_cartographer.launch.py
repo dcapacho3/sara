@@ -22,7 +22,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
     #Configuración de directorios y parámetros para Cartographer
-    turtlebot3_cartographer_prefix = get_package_share_directory('turtlemart')
+    turtlebot3_cartographer_prefix = get_package_share_directory('sara')
     cartographer_config_dir = LaunchConfiguration('cartographer_config_dir', default=os.path.join(
                                                   turtlebot3_cartographer_prefix, 'params'))
     configuration_basename = LaunchConfiguration('configuration_basename',
@@ -35,7 +35,7 @@ def generate_launch_description():
 
 
     # Configuración de RViz para visualización
-    rviz_config_dir = os.path.join(get_package_share_directory('turtlemart'),
+    rviz_config_dir = os.path.join(get_package_share_directory('sara'),
                                    'rviz', 'cartographer_config.rviz')
 
     return LaunchDescription([

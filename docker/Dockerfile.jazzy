@@ -1,5 +1,5 @@
 # ==============================================================================
-# SARA / turtlemart Dockerfile — ROS 2 Jazzy + new Gazebo (Harmonic)
+# SARA / sara Dockerfile — ROS 2 Jazzy + new Gazebo (Harmonic)
 # ==============================================================================
 
 
@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------------------------
-# 2: Navigation, localization, SLAM (Nav2 stack turtlemart's params/launch use)
+# 2: Navigation, localization, SLAM (Nav2 stack sara's params/launch use)
 # ------------------------------------------------------------------------------
 RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-navigation2 \
@@ -82,7 +82,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------------------------
-# 6: Python packages turtlemart's GUIs/nodes import
+# 6: Python packages sara's GUIs/nodes import
 # ------------------------------------------------------------------------------
 RUN pip3 install --break-system-packages transforms3d customtkinter
 
@@ -120,7 +120,7 @@ ENV WORKSPACE=/home/${USERNAME}/ros_ws
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/${USERNAME}/.bashrc && \
     echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> /home/${USERNAME}/.bashrc && \
     echo "export TURTLEBOT3_MODEL=waffle" >> /home/${USERNAME}/.bashrc && \
-    echo "export GZ_SIM_RESOURCE_PATH=${WORKSPACE}/src/turtlemart/models:${WORKSPACE}/src/turtlemart/worlds:\${GZ_SIM_RESOURCE_PATH}" >> /home/${USERNAME}/.bashrc
+    echo "export GZ_SIM_RESOURCE_PATH=${WORKSPACE}/src/sara/models:${WORKSPACE}/src/sara/worlds:\${GZ_SIM_RESOURCE_PATH}" >> /home/${USERNAME}/.bashrc
 
 RUN mkdir -p /home/${USERNAME}/.rviz2 ${WORKSPACE}/src \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}

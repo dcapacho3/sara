@@ -29,7 +29,7 @@ def generate_launch_description():
     # Configuración del tiempo de ejecucion
     use_sim_time = LaunchConfiguration('use_sim_time')
     # Carga del archivo de configuración para el multiplexor
-    mux_params = os.path.join(get_package_share_directory('turtlemart'),'config','mux.yaml')
+    mux_params = os.path.join(get_package_share_directory('sara'),'config','mux.yaml')
 
     # Configuración del nodo multiplexor de topicos
     mux_node = Node(
@@ -56,13 +56,13 @@ def generate_launch_description():
 
     
     # Nodo para limitar la velocidad del robot
-    speed_limit_node= Node( package='turtlemart',executable='speed_limit.py')
+    speed_limit_node= Node( package='sara',executable='speed_limit.py')
 
     # Nodo para convertir señales del joystick en comandos de velocidad
-    teleop_node= Node( package='turtlemart',executable='joy_teleop.py')
+    teleop_node= Node( package='sara',executable='joy_teleop.py')
 
     # Nodo para evasion básica de obstáculos
-    avoidance_node= Node( package='turtlemart',executable='naive_obstacle_avoidance.py')
+    avoidance_node= Node( package='sara',executable='naive_obstacle_avoidance.py')
     
 
     return LaunchDescription([

@@ -83,7 +83,7 @@
       <!-- Set the location where we want to spawn the robot -->
       <pose>0.0 0.0 0.5 0.0 0.0 0.0</pose>
       <!-- basic_mobile_robot -->
-      <uri>model://turtlemart_description</uri>
+      <uri>model://sara_description</uri>
     </include>
   </world>
 </sdf>

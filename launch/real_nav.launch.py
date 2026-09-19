@@ -24,8 +24,8 @@ def generate_launch_description():
 
   # Configuración de rutas a archivos y carpetas
   # Define las ubicaciones de modelos, configuraciones y mapas para la navegación
-  pkg_share = FindPackageShare(package='turtlemart').find('turtlemart')
-  default_model_path = os.path.join(pkg_share, 'models/turtlemart.urdf.xacro')  
+  pkg_share = FindPackageShare(package='sara').find('sara')
+  default_model_path = os.path.join(pkg_share, 'models/sara.urdf.xacro')  
 
   default_rviz_config_path = os.path.join(pkg_share, 'rviz/nav2_config_v2.rviz')
   nav2_dir = FindPackageShare(package='nav2_bringup').find('nav2_bringup') 
@@ -170,10 +170,10 @@ def generate_launch_description():
 
   # Nodo limpiador de mapas de costo
   # Mejora la calidad de los mapas de navegación eliminando ruido
-  costmap_cleaner_node = Node(package='turtlemart', executable='costmap_cleaner.py')
+  costmap_cleaner_node = Node(package='sara', executable='costmap_cleaner.py')
 
   # Nodo bloqueador de multiplexor por medio de balanza integrada
-  locker_node = Node(package='turtlemart', executable='mux_locker.py')
+  locker_node = Node(package='sara', executable='mux_locker.py')
     
   # Lanzamiento de la pila de navegación ROS 2
   # Configura e inicia todos los componentes principales del sistema Nav2

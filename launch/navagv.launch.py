@@ -24,10 +24,10 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
-    bringup_dir = get_package_share_directory('turtlemart')
+    bringup_dir = get_package_share_directory('sara')
     launch_dir = os.path.join(bringup_dir, 'launch')
-    default_model_path = os.path.join(bringup_dir, 'models', 'turtlemart.urdf.xacro')
-    world_file_name = 'turtlemart_world/Supermarket.world'
+    default_model_path = os.path.join(bringup_dir, 'models', 'sara.urdf.xacro')
+    world_file_name = 'sara_world/Supermarket.world'
     world_path = os.path.join(bringup_dir, 'worlds', world_file_name)
     models_path = os.path.join(bringup_dir, 'models')
     worlds_path = os.path.join(bringup_dir, 'worlds')
@@ -128,7 +128,7 @@ def generate_launch_description():
                 package='ros_gz_sim',
                 executable='create',
                 arguments=[
-                    '-name', 'turtlemart',
+                    '-name', 'sara',
                     '-topic', 'robot_description',
                     '-x', '0.5', '-y', '-3.0', '-z', '0.1',
                     '-Y', '1.58',
@@ -193,7 +193,7 @@ def generate_launch_description():
     # publish-before-subscriber-connects race.
     initial_pose_cmd = TimerAction(
         period=10.0,
-        actions=[Node(package='turtlemart', executable='initial_pose_pub.py',
+        actions=[Node(package='sara', executable='initial_pose_pub.py',
                        parameters=[{'use_sim_time': use_sim_time}])])
 
     ld = LaunchDescription()

@@ -545,7 +545,7 @@ class ModernProductManager:
         left_frame.pack_propagate(False)
 
         # Configuración del logo
-        pkg_dir = get_package_share_directory('turtlemart')
+        pkg_dir = get_package_share_directory('sara')
         image_path = os.path.join(pkg_dir, 'images/userlogo.png')
         if os.path.exists(image_path):
             img = Image.open(image_path)
@@ -672,7 +672,7 @@ class ModernProductManager:
             widget.destroy()
 
         try:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             connection = sqlite3.connect(db_dir)
             cursor = connection.cursor()
             cursor.execute("SELECT * FROM products ORDER BY id")
@@ -773,7 +773,7 @@ class ModernProductManager:
             widget.destroy()
 
         try:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             connection = sqlite3.connect(db_dir)
             cursor = connection.cursor()
             
@@ -832,7 +832,7 @@ class ModernProductManager:
         if dialog.result:
             name, x, y = dialog.result
             try:
-                db_dir = get_source_db_path('turtlemart', 'products.db')
+                db_dir = get_source_db_path('sara', 'products.db')
                 connection = sqlite3.connect(db_dir)
                 cursor = connection.cursor()
                 cursor.execute("INSERT INTO products (name, x, y) VALUES (?, ?, ?)", (name, x, y))
@@ -857,7 +857,7 @@ class ModernProductManager:
             return
             
         try:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             connection = sqlite3.connect(db_dir)
             cursor = connection.cursor()
             cursor.execute("SELECT * FROM products WHERE id=?", (selected[0],))
@@ -901,7 +901,7 @@ class ModernProductManager:
             return
             
         try:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             connection = sqlite3.connect(db_dir)
             cursor = connection.cursor()
             

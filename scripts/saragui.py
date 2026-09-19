@@ -296,7 +296,7 @@ class ProductManager:
 
         # Imagen de usuario
         # Carga y muestra el logo del usuario en el panel izquierdo
-        pkg_dir = get_package_share_directory('turtlemart')
+        pkg_dir = get_package_share_directory('sara')
         image_path = os.path.join(pkg_dir, 'images/userlogo.png')
         img = Image.open(image_path)
         size = 300
@@ -524,7 +524,7 @@ class ProductManager:
             widget.destroy()
 
         try:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             self.db_connection = sqlite3.connect(db_dir)
             cursor = self.db_connection.cursor()
 
@@ -595,7 +595,7 @@ class ProductManager:
         # Guarda en la base de datos los productos marcados por el usuario
         selected_items = [key for key, var in self.checkbox_vars.items() if var.get()]
         if selected_items:
-            db_dir = get_source_db_path('turtlemart', 'products.db')
+            db_dir = get_source_db_path('sara', 'products.db')
             connection = sqlite3.connect(db_dir)
             cursor = connection.cursor()
             
@@ -619,7 +619,7 @@ class ProductManager:
         for widget in self.selected_frame.winfo_children():
             widget.destroy()
 
-        db_dir = get_source_db_path('turtlemart', 'products.db')
+        db_dir = get_source_db_path('sara', 'products.db')
         connection = sqlite3.connect(db_dir)
         cursor = connection.cursor()
         cursor.execute("SELECT * FROM selected_products")

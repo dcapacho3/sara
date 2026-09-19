@@ -39,8 +39,8 @@ def create_database():
     
     # Obtener las rutas necesarias para la base de datos
     # Utiliza funciones de ROS2 para localizar directorios del paquete
-    bringup_dir = get_package_share_directory('turtlemart')
-    db_dir = get_source_db_path('turtlemart', 'products.db')
+    bringup_dir = get_package_share_directory('sara')
+    db_dir = get_source_db_path('sara', 'products.db')
     
     # Establecer conexión con la base de datos SQLite
     # Crea el archivo si no existe o se conecta si ya existe

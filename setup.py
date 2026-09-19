@@ -2,7 +2,7 @@ from setuptools import setup
 import glob
 import os
 
-package_name = 'turtlemart'
+package_name = 'sara'
 
 # Find all scripts in the 'scripts' and 'debug' folders
 scripts = glob.glob('scripts/*.py')

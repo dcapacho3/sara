@@ -84,7 +84,7 @@ class AutonomousNavigator:
        #Obtiene las ubicaciones de productos seleccionados de la base de datos
        #Recupera las coordenadas de los productos que el robot debe visitar
        
-       db_dir = get_source_db_path('turtlemart', 'products.db')
+       db_dir = get_source_db_path('sara', 'products.db')
        conn = sqlite3.connect(db_dir)
        cursor = conn.cursor()
        cursor.execute('SELECT name, x, y FROM selected_products')

@@ -17,10 +17,10 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
 
-  pkg_share = get_package_share_directory('turtlemart')
-  default_model_path = os.path.join(pkg_share, 'models', 'turtlemart.urdf.xacro')
+  pkg_share = get_package_share_directory('sara')
+  default_model_path = os.path.join(pkg_share, 'models', 'sara.urdf.xacro')
   default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'urdf_config.rviz')
-  world_file_name = 'turtlemart_world/Supermarket.world'
+  world_file_name = 'sara_world/Supermarket.world'
   world_path = os.path.join(pkg_share, 'worlds', world_file_name)
   models_path = os.path.join(pkg_share, 'models')
   worlds_path = os.path.join(pkg_share, 'worlds')
@@ -74,10 +74,10 @@ def generate_launch_description():
     default_value=world_path,
     description='Full path to the world model file to load')
 
-  # The URDF->SDF conversion turns package://turtlemart/... mesh URIs into
-  # model://turtlemart/..., which gz-sim resolves by looking for a directory
-  # literally named "turtlemart" somewhere on GZ_SIM_RESOURCE_PATH. pkg_share
-  # itself IS that directory (.../share/turtlemart), so its PARENT needs to
+  # The URDF->SDF conversion turns package://sara/... mesh URIs into
+  # model://sara/..., which gz-sim resolves by looking for a directory
+  # literally named "sara" somewhere on GZ_SIM_RESOURCE_PATH. pkg_share
+  # itself IS that directory (.../share/sara), so its PARENT needs to
   # be on the path, not pkg_share's own subfolders.
   gz_resource_path = (
     os.path.dirname(pkg_share) + ':' +
@@ -109,7 +109,7 @@ def generate_launch_description():
         package='ros_gz_sim',
         executable='create',
         arguments=[
-          '-name', 'turtlemart',
+          '-name', 'sara',
           '-topic', 'robot_description',
           '-x', '0.5', '-y', '-3.0', '-z', '0.1',
           '-Y', '1.58',
