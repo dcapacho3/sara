@@ -17,7 +17,8 @@ import numpy as np
 import yaml
 import threading
 import rclpy
-from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped 
+import tf2_ros
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from robot_navigator import BasicNavigator, NavigationResult
 
@@ -323,6 +324,19 @@ class UnifiedNavigationWindow(ctk.CTk):
             self.executor.add_node(self.node)
             self.navigator = BasicNavigator()
 
+            # Map-frame pose for the robot marker on the map widget, looked
+            # up directly from tf2 (map -> base_footprint) rather than from
+            # a single topic: amcl_pose alone only updates on scan-correlated
+            # corrections (too infrequent, visibly laggy), and odom alone is
+            # relative to wherever the robot spawned, not the map (this was
+            # the actual bug: the marker sat near the map origin because
+            # odom starts near zero, not because of a scaling/rotation
+            # error). tf2 composes AMCL's map->odom correction with the
+            # continuous odom->base_footprint stream automatically, giving
+            # both smooth and correctly-localized updates.
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
+
             # Configuración de suscriptores según el modo de navegación
             if self.nav_mode == "Real":
                # self.odom_subscriber = self.node.create_subscription(
@@ -361,13 +375,14 @@ class UnifiedNavigationWindow(ctk.CTk):
                 self.cleanup_ros()
 
     def odom_callback(self, msg):
-        # Callback para actualizar la posición del robot
-        # Procesa los mensajes de odometría para obtener la posición y orientación
-        self.current_pose = {
-            'x': msg.pose.pose.position.x,
-            'y': msg.pose.pose.position.y,
-            'orientation': self.get_yaw_from_quaternion(msg.pose.pose.orientation)
-        }
+        # No longer sets self.current_pose directly: odom is relative to
+        # wherever the robot spawned, not the map, so using it here put the
+        # map widget's robot marker near the map's coordinate origin instead
+        # of the robot's actual localized position. See update_robot_position,
+        # which now gets map-frame pose from tf2 (map -> base_footprint)
+        # instead. Subscription kept in case odom data is needed here again
+        # for something else later.
+        pass
 
     def is_joy_on_callback(self, msg):
         # Callback para actualizar el estado del control remoto
@@ -719,6 +734,21 @@ class UnifiedNavigationWindow(ctk.CTk):
         # Convierte las coordenadas del robot y actualiza su representación visual
         if not self.is_closing:
             try:
+                try:
+                    transform = self.tf_buffer.lookup_transform(
+                        'map', 'base_footprint', rclpy.time.Time())
+                    self.current_pose = {
+                        'x': transform.transform.translation.x,
+                        'y': transform.transform.translation.y,
+                        'orientation': self.get_yaw_from_quaternion(transform.transform.rotation)
+                    }
+                except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                        tf2_ros.ExtrapolationException):
+                    # map -> base_footprint not available yet (e.g. AMCL
+                    # hasn't been seeded with an initial pose yet): keep
+                    # showing the last known pose rather than clearing it.
+                    pass
+
                 if self.current_pose:
                     with self.lock:
                         # Convert map coordinates to pixel coordinates
