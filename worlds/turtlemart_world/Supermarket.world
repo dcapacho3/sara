@@ -1,5 +1,19 @@
 <sdf version='1.7'>
   <world name='default'>
+    <!-- The world already had a <physics> block further down (line ~85,
+         a leftover from the original Classic export) — reused as-is rather
+         than duplicated here. These plugins are new: required by gz-sim /
+         Harmonic, Classic loaded their equivalents implicitly. -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <!-- Imu is its own system, separate from Sensors above — Sensors alone
+         registers the /imu topic but never actually populates it. -->
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"></plugin>
+
     <light name='sun' type='directional'>
       <cast_shadows>1</cast_shadows>
       <pose>0 0 10 0 -0 0</pose>
@@ -55,10 +69,9 @@
             </plane>
           </geometry>
           <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+            <specular>0.01 0.01 0.01 1</specular>
           </material>
         </visual>
         <self_collide>0</self_collide>
@@ -90,100 +103,9 @@
       <elevation>0</elevation>
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
-    <state world_name='default'>
-      <sim_time>144 529000000</sim_time>
-      <real_time>122 968915524</real_time>
-      <wall_time>1723178881 331812904</wall_time>
-      <iterations>122699</iterations>
-      <model name='SupermarketWalls'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='Floor_0'>
-          <pose>0 0 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-        <link name='Wall_14'>
-          <pose>0 3.5 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-        <link name='Wall_17'>
-          <pose>1.5 0 0 0 0 -1.5708</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-        <link name='Wall_19'>
-          <pose>0 -3.5 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-        <link name='Wall_9'>
-          <pose>-1.5 0 0 0 -0 1.5708</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='cashier'>
-        <pose>-1.3823 -2.44329 0.1 -0 -0 -1.57347</pose>
-        <scale>1 1 1</scale>
-        <link name='link_0'>
-          <pose>-0.848786 -2.93699 0.6 -0 -0 -1.57347</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>-0.02517 -7.24874 6.38636 1.93115 -0.0488 0.00121</acceleration>
-          <wrench>-0.02517 -7.24874 6.38636 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='ground_plane'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0 0 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='markers_supermarket_real'>
-        <pose>2e-06 0.5 0.419995 8e-06 6e-06 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>2e-06 0.5 0.419995 8e-06 6e-06 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 -9.8 0 -0 0</acceleration>
-          <wrench>0 0 -9.8 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='markers_supermarket_real_clone'>
-        <pose>-0.026767 -1.1 0.420001 0 -4e-06 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-0.026767 -1.1 0.420001 0 -4e-06 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>5.05058 3.40092 4.1231 -1.20844 -0.073768 3.13635</acceleration>
-          <wrench>5.05058 3.40092 4.1231 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='markers_supermarket_real_clone_0'>
-        <pose>0.012571 2.1 0.419996 4e-06 -8e-06 1e-06</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0.012571 2.1 0.419996 4e-06 -8e-06 1e-06</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>-0.794882 -0.795361 -7.60972 -0.66049 -0.659563 3.14071</acceleration>
-          <wrench>-0.794882 -0.795361 -7.60972 0 -0 0</wrench>
-        </link>
-      </model>
-      <light name='sun'>
-        <pose>0 0 10 0 -0 0</pose>
-      </light>
-    </state>
+    
     <model name='cashier'>
+      <pose>-1.3823 -2.44329 0.1 -0 -0 -1.57347</pose>
       <link name='link_0'>
         <inertial>
           <mass>1</mass>
@@ -212,16 +134,12 @@
           </geometry>
           <material>
             <lighting>1</lighting>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
             <shader type='pixel'>
               <normal_map>__default__</normal_map>
             </shader>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.7 0.7 0.7 1</diffuse>
-            <specular>0.01 0.01 0.01 1</specular>
+            <ambient>0.15 0.22 0.30 1</ambient>
+            <diffuse>0.25 0.42 0.60 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
             <emissive>0 0 0 1</emissive>
           </material>
           <transparency>0</transparency>
@@ -288,7 +206,7 @@
       <pose>3.30388 0.401523 0 0 -0 0</pose>
     </model>
     <model name='SupermarketWalls'>
-      <pose>4.64409 1.78819 0 0 -0 0</pose>
+      <pose>0 0 0 0 -0 0</pose>
       <link name='Floor_0'>
         <collision name='Floor_0_Collision'>
           <geometry>
@@ -319,11 +237,9 @@
             </box>
           </geometry>
           <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-            <ambient>0.921569 0.807843 0.615686 1</ambient>
+            <ambient>0.35 0.30 0.22 1</ambient>
+            <diffuse>0.75 0.65 0.50 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
           </material>
           <meta>
             <layer>0</layer>
@@ -364,11 +280,9 @@
             </box>
           </geometry>
           <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-            <ambient>1 1 1 1</ambient>
+            <ambient>0.35 0.35 0.32 1</ambient>
+            <diffuse>0.85 0.85 0.80 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
           </material>
           <meta>
             <layer>0</layer>
@@ -409,11 +323,9 @@
             </box>
           </geometry>
           <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-            <ambient>1 1 1 1</ambient>
+            <ambient>0.35 0.35 0.32 1</ambient>
+            <diffuse>0.85 0.85 0.80 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
           </material>
           <meta>
             <layer>0</layer>
@@ -454,11 +366,9 @@
             </box>
           </geometry>
           <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-            <ambient>1 1 1 1</ambient>
+            <ambient>0.35 0.35 0.32 1</ambient>
+            <diffuse>0.85 0.85 0.80 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
           </material>
           <meta>
             <layer>0</layer>
@@ -499,11 +409,9 @@
             </box>
           </geometry>
           <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-            <ambient>1 1 1 1</ambient>
+            <ambient>0.35 0.35 0.32 1</ambient>
+            <diffuse>0.85 0.85 0.80 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
           </material>
           <meta>
             <layer>0</layer>
@@ -525,6 +433,7 @@
       </camera>
     </gui>
     <model name='markers_supermarket_real'>
+      <pose>2e-06 0.5 0.419995 8e-06 6e-06 0</pose>
       <link name='link'>
         <inertial>
           <mass>1</mass>
@@ -551,16 +460,12 @@
             </mesh>
           </geometry>
           <material>
-            <script>
-              <name>Gazebo/Grey</name>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-            </script>
             <shader type='pixel'>
               <normal_map>__default__</normal_map>
             </shader>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.7 0.7 0.7 1</diffuse>
-            <specular>0.01 0.01 0.01 1</specular>
+            <ambient>0.25 0.15 0.08 1</ambient>
+            <diffuse>0.55 0.35 0.18 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
             <emissive>0 0 0 1</emissive>
           </material>
           <pose>-0.3 0.3 -0.3 1.58 -0 0</pose>
@@ -628,6 +533,7 @@
       <pose>-0.35853 -0.234564 0 0 -0 0</pose>
     </model>
     <model name='markers_supermarket_real_clone'>
+      <pose>-0.026767 -1.1 0.420001 0 -4e-06 0</pose>
       <link name='link'>
         <inertial>
           <mass>1</mass>
@@ -654,16 +560,12 @@
             </mesh>
           </geometry>
           <material>
-            <script>
-              <name>Gazebo/Grey</name>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-            </script>
             <shader type='pixel'>
               <normal_map>__default__</normal_map>
             </shader>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.7 0.7 0.7 1</diffuse>
-            <specular>0.01 0.01 0.01 1</specular>
+            <ambient>0.25 0.15 0.08 1</ambient>
+            <diffuse>0.55 0.35 0.18 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
             <emissive>0 0 0 1</emissive>
           </material>
           <pose>-0.3 0.3 -0.3 1.58 -0 0</pose>
@@ -736,6 +638,7 @@
     
     
     <model name='markers_supermarket_real_clone_0'>
+      <pose>0.012571 2.1 0.419996 4e-06 -8e-06 1e-06</pose>
       <link name='link'>
         <inertial>
           <mass>1</mass>
@@ -762,16 +665,12 @@
             </mesh>
           </geometry>
           <material>
-            <script>
-              <name>Gazebo/Grey</name>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-            </script>
             <shader type='pixel'>
               <normal_map>__default__</normal_map>
             </shader>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.7 0.7 0.7 1</diffuse>
-            <specular>0.01 0.01 0.01 1</specular>
+            <ambient>0.25 0.15 0.08 1</ambient>
+            <diffuse>0.55 0.35 0.18 1</diffuse>
+            <specular>0.02 0.02 0.02 1</specular>
             <emissive>0 0 0 1</emissive>
           </material>
           <pose>-0.3 0.3 -0.3 1.58 -0 0</pose>
@@ -837,16 +736,12 @@
       <static>0</static>
       <allow_auto_disable>1</allow_auto_disable>
       <pose>0.012573 2.32887 0.42 -0 -0 -0</pose>
-
-          <!-- Import our own robot -->
-
     </model>
-    
-    <include>
-        <!-- Set the location where we want to spawn the robot -->
-        <pose>0.5 -3.0 0.1 0.0 0.0 1.58</pose>
-        <!-- basic_mobile_robot -->
-        <uri>model://turtlemart_description</uri>
-    </include>
+
+    <!-- The robot itself is no longer embedded in the world file. It's
+         spawned from the xacro-driven robot_description topic via
+         ros_gz_sim create at pose (0.5, -3.0, 0.1, yaw 1.58), set in the
+         launch file, so RViz/TF and the Gazebo spawn share one description
+         instead of two drifting out of sync. -->
   </world>
 </sdf>

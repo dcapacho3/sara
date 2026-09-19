@@ -1,34 +1,30 @@
 # Autor: David Capacho Parra
-# Fecha: Febrero 2025
-# Descripción: Archivo de lanzamiento para visualización del robot SARA en simulación
-# Implementa la configuración de lanzamiento para la visualización básica del robot SARA
-# en un entorno Gazebo simulado, permitiendo la observación de los marcos de coordenadas
-# (TF) y el modelo URDF. Este lanzador proporciona una plataforma para demostrar
-# el movimiento básico del robot y verificar la correcta configuración cinemática
-# sin los sistemas completos de navegación o SLAM.
+# Descripción: Lanzamiento básico de SARA en simulación (Jazzy + Gazebo nuevo,
+# Harmonic). Levanta el mundo en gz sim, publica robot_description con
+# robot_state_publisher, genera (spawn) el robot desde ese mismo topic en
+# lugar de un modelo SDF aparte, y hace de puente entre ROS y Gazebo
+# Transport para cmd_vel/odom/scan/imu/tf.
 
 import os
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition, UnlessCondition
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration, PythonExpression
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
+from launch.conditions import IfCondition
+from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
+
 
 def generate_launch_description():
 
-  # Configuración de rutas a archivos y carpetas
-  # Define las ubicaciones de los recursos para la simulación
-  pkg_gazebo_ros = FindPackageShare(package='gazebo_ros').find('gazebo_ros')   
-  pkg_share = FindPackageShare(package='turtlemart').find('turtlemart')
-  default_model_path = os.path.join(pkg_share, 'models/turtlemart.urdf.xacro')  
-  default_rviz_config_path = os.path.join(pkg_share, 'rviz/urdf_config.rviz')
+  pkg_share = get_package_share_directory('turtlemart')
+  default_model_path = os.path.join(pkg_share, 'models', 'turtlemart.urdf.xacro')
+  default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'urdf_config.rviz')
   world_file_name = 'turtlemart_world/Supermarket.world'
   world_path = os.path.join(pkg_share, 'worlds', world_file_name)
-  
-  # Variables de configuración específicas para la simulación
-  # Controlan aspectos visuales y funcionales del entorno simulado
+  models_path = os.path.join(pkg_share, 'models')
+  worlds_path = os.path.join(pkg_share, 'worlds')
+
   headless = LaunchConfiguration('headless')
   model = LaunchConfiguration('model')
   rviz_config_file = LaunchConfiguration('rviz_config_file')
@@ -38,13 +34,11 @@ def generate_launch_description():
   use_simulator = LaunchConfiguration('use_simulator')
   world = LaunchConfiguration('world')
 
-  # Declaración de los argumentos de lanzamiento
-  # Permite la configuración dinámica del comportamiento de la visualización
   declare_model_path_cmd = DeclareLaunchArgument(
-    name='model', 
-    default_value=default_model_path, 
-    description='Absolute path to robot urdf file')
-    
+    name='model',
+    default_value=default_model_path,
+    description='Absolute path to robot urdf/xacro file')
+
   declare_rviz_config_file_cmd = DeclareLaunchArgument(
     name='rviz_config_file',
     default_value=default_rviz_config_path,
@@ -53,8 +47,8 @@ def generate_launch_description():
   declare_simulator_cmd = DeclareLaunchArgument(
     name='headless',
     default_value='False',
-    description='Whether to execute gzclient')
-    
+    description='Whether to run gz sim server-only, without the GUI')
+
   declare_use_robot_state_pub_cmd = DeclareLaunchArgument(
     name='use_robot_state_pub',
     default_value='True',
@@ -64,7 +58,7 @@ def generate_launch_description():
     name='use_rviz',
     default_value='True',
     description='Whether to start RVIZ')
-    
+
   declare_use_sim_time_cmd = DeclareLaunchArgument(
     name='use_sim_time',
     default_value='True',
@@ -79,36 +73,66 @@ def generate_launch_description():
     name='world',
     default_value=world_path,
     description='Full path to the world model file to load')
-   
-  # Especificación de las acciones para el lanzamiento
-  # Define los componentes que se iniciarán y su configuración
 
-  # Iniciar el servidor de Gazebo
-  # Gestiona la simulación física del entorno y el robot SARA
-  start_gazebo_server_cmd = IncludeLaunchDescription(
-    PythonLaunchDescriptionSource(os.path.join(pkg_gazebo_ros, 'launch', 'gzserver.launch.py')),
+  # The URDF->SDF conversion turns package://turtlemart/... mesh URIs into
+  # model://turtlemart/..., which gz-sim resolves by looking for a directory
+  # literally named "turtlemart" somewhere on GZ_SIM_RESOURCE_PATH. pkg_share
+  # itself IS that directory (.../share/turtlemart), so its PARENT needs to
+  # be on the path, not pkg_share's own subfolders.
+  gz_resource_path = (
+    os.path.dirname(pkg_share) + ':' +
+    models_path + ':' + worlds_path + ':' +
+    os.environ.get('GZ_SIM_RESOURCE_PATH', ''))
+
+  # gz sim replaces gzserver/gzclient. "-s" alone runs server-only
+  # (headless); otherwise server and GUI come up together in one process.
+  start_gz_sim_cmd = ExecuteProcess(
     condition=IfCondition(use_simulator),
-    launch_arguments={'world': world}.items())
+    cmd=['gz', 'sim', '-r', '-v', '4', world],
+    additional_env={'GZ_SIM_RESOURCE_PATH': gz_resource_path},
+    output='screen')
 
-  # Iniciar el cliente de Gazebo
-  # Proporciona la interfaz visual para la simulación    
-  start_gazebo_client_cmd = IncludeLaunchDescription(
-    PythonLaunchDescriptionSource(os.path.join(pkg_gazebo_ros, 'launch', 'gzclient.launch.py')),
-    condition=IfCondition(PythonExpression([use_simulator, ' and not ', headless])))
-    
-
-  # Publicador del estado del robot SARA
-  # Publica las transformaciones (TF) entre los diferentes eslabones del robot
   start_robot_state_publisher_cmd = Node(
     condition=IfCondition(use_robot_state_pub),
     package='robot_state_publisher',
     executable='robot_state_publisher',
-    parameters=[{'use_sim_time': use_sim_time, 
-    'robot_description': Command(['xacro ', model])}],
-    arguments=[default_model_path])
+    parameters=[{'use_sim_time': use_sim_time,
+      'robot_description': ParameterValue(Command(['xacro ', model]), value_type=str)}])
 
-  # Lanzamiento de RViz para visualización
-  # Permite observar el modelo 3D del robot SARA y sus transformaciones
+  # Spawn from the /robot_description topic robot_state_publisher just
+  # published, not a separate SDF file, so RViz/TF and the Gazebo spawn
+  # always agree. Delayed so gz sim's spawn service is up first.
+  spawn_robot_cmd = TimerAction(
+    period=5.0,
+    actions=[
+      Node(
+        package='ros_gz_sim',
+        executable='create',
+        arguments=[
+          '-name', 'turtlemart',
+          '-topic', 'robot_description',
+          '-x', '0.5', '-y', '-3.0', '-z', '0.1',
+          '-Y', '1.58',
+        ],
+        output='screen')
+    ])
+
+  # ROS <-> Gazebo Transport bridge for the topics the diff drive and
+  # sensor plugins publish on the Gazebo side.
+  bridge_cmd = Node(
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=[
+      '/cmd_vel_out@geometry_msgs/msg/Twist@gz.msgs.Twist',
+      '/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry',
+      '/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
+      '/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
+      '/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
+      '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+    ],
+    parameters=[{'use_sim_time': use_sim_time}],
+    output='screen')
+
   start_rviz_cmd = Node(
     condition=IfCondition(use_rviz),
     package='rviz2',
@@ -116,26 +140,22 @@ def generate_launch_description():
     name='rviz2',
     output='screen',
     arguments=['-d', rviz_config_file])
-  
-  # Creación de la descripción de lanzamiento y población
+
   ld = LaunchDescription()
 
-  # Declaración de las opciones de lanzamiento
-  # Añade todos los argumentos configurables
   ld.add_action(declare_model_path_cmd)
   ld.add_action(declare_rviz_config_file_cmd)
   ld.add_action(declare_simulator_cmd)
-  ld.add_action(declare_use_robot_state_pub_cmd)  
-  ld.add_action(declare_use_rviz_cmd) 
+  ld.add_action(declare_use_robot_state_pub_cmd)
+  ld.add_action(declare_use_rviz_cmd)
   ld.add_action(declare_use_sim_time_cmd)
   ld.add_action(declare_use_simulator_cmd)
   ld.add_action(declare_world_cmd)
 
-  # Adición de las acciones a ejecutar
-  # Configura el orden de inicio de los componentes para la visualización
-  ld.add_action(start_gazebo_server_cmd)
-  ld.add_action(start_gazebo_client_cmd)
+  ld.add_action(start_gz_sim_cmd)
   ld.add_action(start_robot_state_publisher_cmd)
+  ld.add_action(spawn_robot_cmd)
+  ld.add_action(bridge_cmd)
   ld.add_action(start_rviz_cmd)
 
   return ld
