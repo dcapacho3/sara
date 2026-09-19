@@ -18,9 +18,9 @@ import yaml
 import threading
 import rclpy
 import tf2_ros
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy, QoSHistoryPolicy
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
-from nav_msgs.msg import Odometry
-from robot_navigator import BasicNavigator, NavigationResult
+from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 
 from ament_index_python.packages import get_package_share_directory
 from real_guiwaypoint import AutonomousNavigator as RealNavigator
@@ -95,6 +95,18 @@ class UnifiedNavigationWindow(ctk.CTk):
         
         self.is_closing = False
         self.ros_initialized = False
+        # Se activa solo cuando init_ros (un hilo en segundo plano, sin
+        # sincronización con este) ha terminado realmente de crear
+        # self.navigator/self.tf_buffer/el suscriptor de AMCL. Sin esto,
+        # hacer clic en "Iniciar" antes de que init_ros termine hace que
+        # launch_and_update llegue a `if self.navigator:` con el valor
+        # todavía en None, saltándose waitUntilNav2Active por completo:
+        # el botón de navegación se podía pulsar desde el momento en que
+        # se abría la ventana, así que el resultado dependía de qué tan
+        # rápido hiciera clic el usuario respecto a la configuración de
+        # init_ros (~2s o más), coincidiendo con el reporte de que "a veces
+        # Nav2 no arranca".
+        self.ros_ready = threading.Event()
         self.threads = []
         self.lock = threading.Lock()
         
@@ -123,10 +135,10 @@ class UnifiedNavigationWindow(ctk.CTk):
         self.node = None
         self.executor = None
         self.navigator = None
-        self.odom_subscriber = None
         self.is_joy_on_subscriber = None
         self.continue_nav_publisher = None
         self.current_pose = None
+        self.latest_amcl_covariance = None  # (cov_x, cov_y), la establece amcl_pose_callback
         self.cashier_reached = False
         self.lock_all_active = False  # Agregar esta variable de estado
         self.should_show_popup = True
@@ -241,13 +253,14 @@ class UnifiedNavigationWindow(ctk.CTk):
         # Botón principal para controlar la navegación
         self.navigation_button = ctk.CTkButton(
             self.button_inner_frame,
-            text="Iniciar",
-            command=self.handle_navigation_button,        
+            text="Iniciando sistema...",
+            command=self.handle_navigation_button,
             height=90,  # Mantenemos la altura del botón original
             fg_color=self.colors['button_bg'],
             text_color=self.colors['button_text'],
             hover_color=self.colors['button_hover'],
-            font=self.PRODUCT_FONT
+            font=self.PRODUCT_FONT,
+            state="disabled"
         )
         self.navigation_button.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True, padx=5)
 
@@ -339,25 +352,50 @@ class UnifiedNavigationWindow(ctk.CTk):
 
             # Configuración de suscriptores según el modo de navegación
             if self.nav_mode == "Real":
-               # self.odom_subscriber = self.node.create_subscription(
-                #    PoseWithCovarianceStamped, 'amcl_pose', self.odom_callback, 10)
-                self.odom_subscriber = self.node.create_subscription(
-                    Odometry, 'odometry/filtered', self.odom_callback, 10)
-
                 self.lock_all_subscriber = self.node.create_subscription(
                     Bool, 'lock_all', self.lock_all_callback, 10)
-            else:
-                self.odom_subscriber = self.node.create_subscription(
-                    Odometry, 'odom', self.odom_callback, 10)
 
             # Suscriptor para el estado del joystick
-            self.is_joy_on_subscriber = self.node.create_subscription(String, 'is_joy_on', self.is_joy_on_callback, 10) 
+            self.is_joy_on_subscriber = self.node.create_subscription(String, 'is_joy_on', self.is_joy_on_callback, 10)
+
+            # Covarianza de pose propia de AMCL, usada por launch_and_update
+            # para esperar una confianza de localización real antes de
+            # arrancar la navegación (waitUntilNav2Active solo confirma que
+            # AMCL está activo a nivel de lifecycle y tiene una pose inicial,
+            # no que ya haya convergido).
+            # El QoS coincide con el del publicador real de AMCL (RELIABLE +
+            # TRANSIENT_LOCAL, confirmado con `ros2 topic info /amcl_pose
+            # --verbose`), no con el valor por defecto (VOLATILE): un
+            # suscriptor VOLATILE solo recibe mensajes genuinamente nuevos
+            # desde el momento en que se conecta, así que si esta suscripción
+            # se creara después de que AMCL ya hubiera publicado (por ejemplo
+            # si cambiara el orden de inicialización en el futuro), nunca
+            # vería una pose en caché y wait_for_localization simplemente
+            # agotaría su timeout siempre. TRANSIENT_LOCAL aquí garantiza que
+            # reciba la última pose conocida de AMCL de inmediato, sin
+            # importar el orden de suscripción/publicación.
+            amcl_pose_qos = QoSProfile(
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=1)
+            self.amcl_pose_subscriber = self.node.create_subscription(
+                PoseWithCovarianceStamped, 'amcl_pose', self.amcl_pose_callback, amcl_pose_qos)
 
             # Publicadores para control de navegación
             self.continue_nav_publisher = self.node.create_publisher(String, '/continue_nav', 10)
             self.cashier_publisher = self.node.create_publisher(String, '/to_do_next', 10)
             self.status_subscriber = self.node.create_subscription(String, '/navigation_status', self.status_callback, 10)
-        
+
+            # Todo lo que necesita launch_and_update (navigator, tf_buffer,
+            # amcl_pose_subscriber) ya existe: ahora es seguro dejar que el
+            # usuario haga clic en "Iniciar". configure() toca un widget,
+            # así que hay que pasarlo al hilo principal con after(0, ...),
+            # no llamarlo directamente desde este hilo.
+            self.ros_ready.set()
+            self.after(0, lambda: self.navigation_button.configure(
+                state="normal", text="Iniciar"))
+
             # Bucle principal de ejecución de ROS
             while rclpy.ok() and not self.is_closing:
                 try:
@@ -374,15 +412,12 @@ class UnifiedNavigationWindow(ctk.CTk):
             if self.is_closing:
                 self.cleanup_ros()
 
-    def odom_callback(self, msg):
-        # No longer sets self.current_pose directly: odom is relative to
-        # wherever the robot spawned, not the map, so using it here put the
-        # map widget's robot marker near the map's coordinate origin instead
-        # of the robot's actual localized position. See update_robot_position,
-        # which now gets map-frame pose from tf2 (map -> base_footprint)
-        # instead. Subscription kept in case odom data is needed here again
-        # for something else later.
-        pass
+    def amcl_pose_callback(self, msg):
+        # Registra la incertidumbre que reporta AMCL (su covarianza de
+        # pose), para que launch_and_update pueda esperar una confianza de
+        # localización real en vez de asumir que la pose es buena apenas
+        # AMCL se activa.
+        self.latest_amcl_covariance = (msg.pose.covariance[0], msg.pose.covariance[7])
 
     def is_joy_on_callback(self, msg):
         # Callback para actualizar el estado del control remoto
@@ -677,7 +712,6 @@ class UnifiedNavigationWindow(ctk.CTk):
         self.node = None
         self.executor = None
         self.navigator = None
-        self.odom_subscriber = None
         self.continue_nav_publisher = None
         self.launch_processes = []
    
@@ -733,6 +767,15 @@ class UnifiedNavigationWindow(ctk.CTk):
         # Método para actualizar la posición del robot en el mapa
         # Convierte las coordenadas del robot y actualiza su representación visual
         if not self.is_closing:
+            if not self.ros_ready.is_set():
+                # init_ros (hilo en segundo plano) todavía no ha creado
+                # tf_buffer. Esto se ejecuta desde la construcción de la
+                # GUI, independiente del botón de navegación, así que
+                # empieza a sondear de inmediato: solo se reprograma en
+                # silencio en vez de lanzar/imprimir un AttributeError
+                # cada 100ms hasta que init_ros se ponga al día.
+                self.after(100, self.update_robot_position)
+                return
             try:
                 try:
                     transform = self.tf_buffer.lookup_transform(
@@ -892,21 +935,16 @@ class UnifiedNavigationWindow(ctk.CTk):
 
     def handle_navigation_button(self):
         # Método para manejar la acción del botón de navegación
-        # Implementa la lógica de diferentes estados del botón
+        # Un solo clic lanza todo (stack ROS 2) y arranca la navegación en
+        # cuanto está lista, sin un segundo clic intermedio — mismo patrón
+        # de un solo botón que usa workergui.py.
         if not self.calibration_complete:
-            # Primera fase: iniciar calibración
             if not self.launch_thread or not self.launch_thread.is_alive():
                 self.launch_thread = self.start_thread(self.launch_and_update)
                 self.navigation_button.configure(state="disabled")
-                print("Launching ROS 2 files in background...")
+                print("Launching ROS 2 files and starting navigation in background...")
         else:
-            # Segunda fase: navegación
-            if not self.navigation_started:
-                print("Iniciando navegación...")
-                self.start_thread(self.run_navigation)
-                self.navigation_started = True
-                self.navigation_button.configure(state="disabled")
-            elif self.go_to_cashier:
+            if self.go_to_cashier:
                 self.navigation_button.configure(state="disabled")
                 self.go_to_checkout()
             else:
@@ -914,23 +952,71 @@ class UnifiedNavigationWindow(ctk.CTk):
                 self.perform_alternate_action()
 
     def launch_and_update(self):
-        # Método para lanzar archivos ROS2 y actualizar la interfaz
-        # Inicia los procesos necesarios y actualiza el estado del botón
-        # Lanzar los archivos ROS2
+        # Método para lanzar archivos ROS2 e iniciar la navegación
+        # Lanza el stack ROS2 y espera a que Nav2 esté realmente activo
+        # (via nav2_simple_commander) en lugar de una espera fija adivinada;
+        # luego arranca la navegación directamente, sin esperar un segundo
+        # clic del usuario.
         self.launch_ros2_files()
-        # Esperar un tiempo prudencial para que todo se inicie
-        time.sleep(10)  # Ajusta este tiempo según sea necesario
-        # Actualizar el botón
-        self.calibration_complete = True
-        def update_ui():
-            self.navigation_button.configure(
-                text="Buscar productos",
-                state="normal"
-            )
+
+        def update_ui_waiting():
             self.status_label.configure(
-                text=" Haga clic en 'Buscar productos' para encontrar la ruta mas eficiente."
+                text=" Iniciando el sistema de navegación..."
+            )
+        self.after(0, update_ui_waiting)
+
+        # Defensivo: el botón de navegación ahora permanece deshabilitado
+        # hasta que se activa ros_ready, así que esto ya debería ser
+        # cierto. Se deja como una espera en vez de un simple
+        # `if self.navigator:` para que cualquier futura ruta de llamada
+        # que se salte el botón no pueda saltarse en silencio la
+        # verificación de Nav2, como pasaba con la condición de carrera
+        # anterior.
+        self.ros_ready.wait(timeout=15.0)
+        if self.navigator:
+            try:
+                self.navigator.waitUntilNav2Active()
+            except Exception as e:
+                print(f"Error waiting for Nav2 to become active: {e}")
+
+        self.wait_for_localization()
+
+        self.calibration_complete = True
+        self.navigation_started = True
+
+        def update_ui():
+            self.status_label.configure(
+                text=" Buscando la ruta mas eficiente..."
             )
         self.after(0, update_ui)
+
+        self.run_navigation()
+
+    def wait_for_localization(self, timeout_sec=15.0, poll_interval_sec=0.5):
+        # waitUntilNav2Active solo confirma que AMCL está activo a nivel de
+        # lifecycle y que recibió una pose inicial, no que ya haya
+        # procesado una corrección real a partir de esa semilla. AMCL sí
+        # corrige de inmediato ante un /initialpose reciente incluso con
+        # el robot quieto (confirmado por medición directa: la covarianza
+        # bajó desde la semilla de 0.25 m^2 de initial_pose_pub.py hasta
+        # ~0.19-0.21 con esa sola corrección) — la convergencia completa
+        # necesita movimiento real para afinarse más, lo cual ocurre de
+        # forma natural en cuanto arranca la navegación, así que esto solo
+        # espera a que llegue esa primera corrección en reposo, no la
+        # convergencia total. Está acotado por timeout_sec para que una
+        # localización realmente atascada no deje el botón colgado para
+        # siempre.
+        target_covariance = 0.22  # justo por encima del piso medido de ~0.19-0.21 en reposo
+        elapsed = 0.0
+        while elapsed < timeout_sec:
+            cov = self.latest_amcl_covariance
+            if cov is not None and cov[0] < target_covariance and cov[1] < target_covariance:
+                return
+            time.sleep(poll_interval_sec)
+            elapsed += poll_interval_sec
+        print(f"Proceeding after {timeout_sec}s without AMCL covariance "
+              f"tightening below {target_covariance}; last known: "
+              f"{self.latest_amcl_covariance}")
         
                 
     def launch_ros2_files(self):
@@ -993,7 +1079,7 @@ class UnifiedNavigationWindow(ctk.CTk):
         # Crea una instancia del navegador apropiado y ejecuta la navegación
         try:
             navigator_class = RealNavigator if self.nav_mode == "Real" else SimNavigator
-            navigator = navigator_class()
+            navigator = navigator_class(navigator=self.navigator)
             waypoints_reached = navigator.navigate()
             print("Navegación completa")
             if not self.is_closing:
@@ -1155,14 +1241,14 @@ class UnifiedNavigationWindow(ctk.CTk):
             # Intentar detener la navegación primero
             if hasattr(self, 'navigator') and self.navigator:
                 try:
-                    self.navigator.cancelNavigation()
+                    self.navigator.cancelTask()
                 except:
                     pass
 
             # Limpiar publishers y subscribers
             ros_components = [
-                'continue_nav_publisher', 'cashier_publisher', 
-                'odom_subscriber', 'is_joy_on_subscriber', 
+                'continue_nav_publisher', 'cashier_publisher',
+                'is_joy_on_subscriber',
                 'status_subscriber'
             ]
             
@@ -1306,7 +1392,7 @@ class UnifiedNavigationWindow(ctk.CTk):
             # Intentar detener la navegación desde Python primero
             if hasattr(self, 'navigator') and self.navigator:
                 try:
-                    self.navigator.cancelNavigation()
+                    self.navigator.cancelTask()
                 except:
                     pass
 
@@ -1397,7 +1483,7 @@ class UnifiedNavigationWindow(ctk.CTk):
 
         try:
             if hasattr(self, 'navigator') and self.navigator:
-                self.navigator.cancelNavigation()
+                self.navigator.cancelTask()
             
             # Publicar mensaje de parada si es necesario
             if hasattr(self, 'continue_nav_publisher'):

@@ -158,16 +158,27 @@ def generate_launch_description():
         output='screen',
         arguments=['-d', rviz_config_file])
 
-    bringup_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(launch_dir, 'bringup_launch.py')),
-        launch_arguments={'namespace': '',
-                          'use_namespace': 'false',
-                          'slam': slam,
-                          'map': map_yaml_file,
-                          'use_sim_time': use_sim_time,
-                          'params_file': params_file,
-                          'default_bt_xml_filename': default_bt_xml_filename,
-                          'autostart': autostart}.items())
+    # Delayed a few seconds behind gz sim's own start. Nav2's lifecycle
+    # managers use a wall-clock bond_timeout (4.0s default, not overridable
+    # here since nav2_bringup's stock localization/navigation launch files
+    # don't read it from params_file) to detect dead nodes via heartbeat.
+    # Starting the whole Nav2 stack at the exact same instant as Gazebo's
+    # own cold start (world parse, physics init, rendering — the heaviest
+    # CPU moment of the launch) risks missing that heartbeat under load,
+    # which reads as Nav2 intermittently failing to come up depending on
+    # how loaded the machine happens to be at that moment.
+    bringup_cmd = TimerAction(
+        period=4.0,
+        actions=[IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(launch_dir, 'bringup_launch.py')),
+            launch_arguments={'namespace': '',
+                              'use_namespace': 'false',
+                              'slam': slam,
+                              'map': map_yaml_file,
+                              'use_sim_time': use_sim_time,
+                              'params_file': params_file,
+                              'default_bt_xml_filename': default_bt_xml_filename,
+                              'autostart': autostart}.items())])
 
     start_robot_localization_cmd = Node(
       package='robot_localization',

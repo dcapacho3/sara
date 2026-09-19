@@ -13,7 +13,7 @@ import rclpy
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
-from robot_navigator import BasicNavigator, NavigationResult
+from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 import math
 import numpy as np
 import yaml
@@ -40,20 +40,31 @@ def get_source_db_path(package_name, db_filename):
    return db_path
 
 class AutonomousNavigator:
-   def __init__(self):
+   def __init__(self, navigator=None):
        # Inicialización del nodo y configuración de componentes
        # Establece las conexiones necesarias para la navegación y monitoreo
        self.node = rclpy.create_node('navigator_node')
        self.odom_subscriber = OdomSubscriber(self.node)
-       self.continue_subscriber = ContinueSubscriber(self.node) 
+       self.continue_subscriber = ContinueSubscriber(self.node)
        self.todonext_subscriber = ToDoNextSubscriber(self.node)
        self.status_publisher = self.node.create_publisher(String, '/navigation_status', 10)
        self.visited_waypoints = set()
-       
+
        # Inicialización del navegador básico
-       # Conecta con el sistema Nav2 para control de movimiento
-       self.navigator = BasicNavigator()
-       self.navigator.waitUntilNav2Active()
+       # Conecta con el sistema Nav2 para control de movimiento. Si el
+       # llamador ya tiene un BasicNavigator (base_navgui.py crea uno en
+       # init_ros para esperar a que Nav2 esté activo), se reutiliza en vez
+       # de crear otro: dos instancias con el mismo nombre de nodo
+       # ('basic_navigator') coexistiendo en el mismo proceso disparaban el
+       # warning "Publisher already registered for node name: basic_navigator"
+       # y duplicaban la espera/los clientes de acción contra Nav2. Al
+       # ejecutarse como script independiente (__main__ más abajo) no se
+       # pasa nada, así que se sigue creando uno propio.
+       if navigator is not None:
+           self.navigator = navigator
+       else:
+           self.navigator = BasicNavigator()
+           self.navigator.waitUntilNav2Active()
        
        # Ubicación predefinida de la caja registradora
        # Punto final fijo para todas las rutas de recolección
@@ -229,7 +240,7 @@ class AutonomousNavigator:
            self.publish_status("NAVIGATING", pose_names[current_waypoint])
 
            # Monitorear el progreso de la navegación
-           while not self.navigator.isNavComplete():
+           while not self.navigator.isTaskComplete():
                rclpy.spin_once(self.node, timeout_sec=1.0)
                feedback = self.navigator.getFeedback()
                if feedback:
@@ -245,15 +256,15 @@ class AutonomousNavigator:
                    
            # Procesar el resultado de la navegación
            result = self.navigator.getResult()
-           if result == NavigationResult.SUCCEEDED:
+           if result == TaskResult.SUCCEEDED:
                self.publish_status("REACHED", pose_names[current_waypoint])
                self.visited_waypoints.add(pose_names[current_waypoint])
                previous_pose = current_pose
                
-           elif result == NavigationResult.CANCELED:
+           elif result == TaskResult.CANCELED:
                self.publish_status("CANCELED", pose_names[current_waypoint])
                break
-           elif result == NavigationResult.FAILED:
+           elif result == TaskResult.FAILED:
                self.publish_status("FAILED", pose_names[current_waypoint])
                break
                
@@ -320,7 +331,7 @@ class AutonomousNavigator:
        total_distance = self.calculate_distance(initial_pose, goal_pose)
 
        # Monitorear el progreso de la navegación
-       while not self.navigator.isNavComplete():
+       while not self.navigator.isTaskComplete():
            rclpy.spin_once(self.node, timeout_sec=1.0)
            feedback = self.navigator.getFeedback()
            if feedback:
@@ -337,11 +348,11 @@ class AutonomousNavigator:
 
        # Procesar el resultado de la navegación
        result = self.navigator.getResult()
-       if result == NavigationResult.SUCCEEDED:
+       if result == TaskResult.SUCCEEDED:
            self.publish_status("REACHED", "cashier")
-       elif result == NavigationResult.CANCELED:
+       elif result == TaskResult.CANCELED:
            self.publish_status("CANCELED", "cashier")
-       elif result == NavigationResult.FAILED:
+       elif result == TaskResult.FAILED:
            self.publish_status("FAILED", "cashier")
 
    def calculate_goal_orientation(self, current_x, current_y, goal_x, goal_y):
