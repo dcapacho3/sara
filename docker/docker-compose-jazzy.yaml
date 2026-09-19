@@ -1,6 +1,14 @@
-# On a machine with an NVIDIA GPU and the
-# nvidia container runtime installed, enable it with:
-#   export DOCKER_RUNTIME=nvidia
+# On a machine with an NVIDIA GPU and the nvidia container runtime
+# installed, enable it with: export DOCKER_RUNTIME=nvidia
+#
+# /dev/dri (the Linux DRM/GPU device nodes) is mounted unconditionally
+# below, not gated behind an env var: any Linux dev machine with a display
+# has it, whether via an integrated GPU or a discrete one, same as the
+# other Jazzy Dockerfiles in ~/all_source. Without it, GUI apps fall back
+# to software rendering; RViz2 specifically (its own vendored OGRE, not
+# the OGRE2 Gazebo uses) doesn't complete that fallback and just hangs
+# with an unmapped 1x1 window instead of degrading gracefully like Gazebo
+# does, so this isn't optional the way NVIDIA passthrough is.
 services:
   sara_jazzy:
     build:
@@ -21,6 +29,12 @@ services:
       - TURTLEBOT3_MODEL=waffle
       - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
       - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-all}
+
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
 
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
