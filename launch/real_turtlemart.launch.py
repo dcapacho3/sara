@@ -8,6 +8,7 @@
 
 import launch
 from launch.substitutions import Command, LaunchConfiguration
+from launch_ros.parameter_descriptions import ParameterValue
 import launch_ros
 import os
 
@@ -26,7 +27,7 @@ def generate_launch_description():
         package='joint_state_publisher',
         executable='joint_state_publisher',
         name='joint_state_publisher',
-        parameters=[{'robot_description': Command(['xacro ', default_model_path])}],
+        parameters=[{'robot_description': ParameterValue(Command(['xacro ', default_model_path]), value_type=str)}],
         condition=launch.conditions.UnlessCondition(LaunchConfiguration('gui'))
     )
     

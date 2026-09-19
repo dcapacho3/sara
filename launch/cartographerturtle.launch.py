@@ -1,54 +1,41 @@
 # Autor: David Capacho Parra
-# Fecha: Febrero 2025
-# Descripción: Archivo de lanzamiento para SLAM utilizando cartographer en el robot SARA simulado
-# Implementa la configuración de lanzamiento para un sistema de mapeo y localización
-# simultánea (SLAM) utilizando Cartographer en el robot SARA simulado en Gazebo.
-# La arquitectura permite la integración de sensores, visualización en RViz,
-# generación de mapas de ocupación y simulación del entorno en un supermercado virtual.
-
+# Descripción: SLAM con Cartographer sobre SARA en simulación (Jazzy + Gazebo
+# nuevo, Harmonic). Mismo patrón world/spawn/bridge que turtlemart.launch.py
+# y navagv.launch.py: gz sim, robot_state_publisher publica robot_description,
+# el robot se genera (spawn) desde ese mismo topic, y un puente ROS<->Gazebo
+# Transport conecta cmd_vel/odom/scan/imu/tf/clock.
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition, UnlessCondition
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, TimerAction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration, PythonExpression
+from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import ThisLaunchFileDir
+from launch_ros.parameter_descriptions import ParameterValue
+
 
 def generate_launch_description():
 
-
-    
-    # Configuración de rutas a archivos y carpetas necesarios para la simulación
-    # Define las ubicaciones de los modelos, configuraciones y mundos virtuales
-    pkg_gazebo_ros = FindPackageShare(package='gazebo_ros').find('gazebo_ros')   
-    pkg_share = FindPackageShare(package='turtlemart').find('turtlemart')
-    default_model_path = os.path.join(pkg_share, 'models/turtlemart.urdf.xacro')  
-    default_rviz_config_path = os.path.join(get_package_share_directory('turtlemart'),
-                                   'rviz', 'cartographer_config.rviz')
+    pkg_share = get_package_share_directory('turtlemart')
+    default_model_path = os.path.join(pkg_share, 'models', 'turtlemart.urdf.xacro')
+    default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'cartographer_config.rviz')
     world_file_name = 'turtlemart_world/Supermarket.world'
     world_path = os.path.join(pkg_share, 'worlds', world_file_name)
+    models_path = os.path.join(pkg_share, 'models')
+    worlds_path = os.path.join(pkg_share, 'worlds')
 
-    # Configuración específica para Cartographer
-    # Define los directorios y parámetros para el algoritmo SLAM
-    turtlebot3_cartographer_prefix = get_package_share_directory('turtlemart')
     cartographer_config_dir = LaunchConfiguration('cartographer_config_dir', default=os.path.join(
-                                                  turtlebot3_cartographer_prefix, 'params'))
+                                                  pkg_share, 'params'))
     configuration_basename = LaunchConfiguration('configuration_basename',
                                                  default='cartographer_params.lua')
 
-    # Configuración de parámetros para el mapa de ocupación
-    # Define la resolución y frecuencia de publicación del mapa generado
     resolution = LaunchConfiguration('resolution', default='0.05')
     publish_period_sec = LaunchConfiguration('publish_period_sec', default='1.0')
 
-    
-    # Variables de configuración específicas para la simulación
     headless = LaunchConfiguration('headless')
     model = LaunchConfiguration('model')
     rviz_config_file = LaunchConfiguration('rviz_config_file')
@@ -58,13 +45,10 @@ def generate_launch_description():
     use_simulator = LaunchConfiguration('use_simulator')
     world = LaunchConfiguration('world')
 
-
-
-    # Declaración de argumentos de lanzamiento
     declare_model_path_cmd = DeclareLaunchArgument(
         name='model',
         default_value=default_model_path,
-        description='Absolute path to robot urdf file')
+        description='Absolute path to robot urdf/xacro file')
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
@@ -74,7 +58,7 @@ def generate_launch_description():
     declare_simulator_cmd = DeclareLaunchArgument(
         name='headless',
         default_value='False',
-        description='Whether to execute gzclient')
+        description='Whether to run gz sim server-only, without the GUI')
 
     declare_use_robot_state_pub_cmd = DeclareLaunchArgument(
         name='use_robot_state_pub',
@@ -100,17 +84,17 @@ def generate_launch_description():
         name='world',
         default_value=world_path,
         description='Full path to the world model file to load')
-    
+
     declare_cartographer_dir_cmd = DeclareLaunchArgument(
             'cartographer_config_dir',
             default_value=cartographer_config_dir,
             description='Full path to config file to load')
-    
+
     declare_cartographer_param_cmd = DeclareLaunchArgument(
             'configuration_basename',
             default_value=configuration_basename,
             description='Name of lua file for cartographer')
-    
+
     declare_resolution = DeclareLaunchArgument(
             'resolution',
             default_value=resolution,
@@ -121,32 +105,53 @@ def generate_launch_description():
             default_value=publish_period_sec,
             description='OccupancyGrid publishing period')
 
-    
+    gz_resource_path = (
+        os.path.dirname(pkg_share) + ':' +
+        models_path + ':' + worlds_path + ':' +
+        os.environ.get('GZ_SIM_RESOURCE_PATH', ''))
 
-
-    # Especificación de acciones para el lanzamiento
-    # Iniciar el servidor de Gazebo
-    start_gazebo_server_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(pkg_gazebo_ros, 'launch', 'gzserver.launch.py')),
+    start_gz_sim_cmd = ExecuteProcess(
         condition=IfCondition(use_simulator),
-        launch_arguments={'world': world}.items())
+        cmd=['gz', 'sim', '-r', '-v', '4', world],
+        additional_env={'GZ_SIM_RESOURCE_PATH': gz_resource_path},
+        output='screen')
 
-    # Iniciar el cliente de Gazebo
-    start_gazebo_client_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(pkg_gazebo_ros, 'launch', 'gzclient.launch.py')),
-        condition=IfCondition(PythonExpression([use_simulator, ' and not ', headless])))
-
-
-    # Se suscribe a los estados de las articulaciones y publica la pose 3D de cada eslabón
     start_robot_state_publisher_cmd = Node(
         condition=IfCondition(use_robot_state_pub),
         package='robot_state_publisher',
         executable='robot_state_publisher',
-        parameters=[{'use_sim_time': use_sim_time, 
-        'robot_description': Command(['xacro ', model])}],
-        arguments=[default_model_path])
+        parameters=[{'use_sim_time': use_sim_time,
+            'robot_description': ParameterValue(Command(['xacro ', model]), value_type=str)}])
 
-    # Lanzamiento de RViz
+    spawn_robot_cmd = TimerAction(
+        period=5.0,
+        actions=[
+            Node(
+                package='ros_gz_sim',
+                executable='create',
+                arguments=[
+                    '-name', 'turtlemart',
+                    '-topic', 'robot_description',
+                    '-x', '0.5', '-y', '-3.0', '-z', '0.1',
+                    '-Y', '1.58',
+                ],
+                output='screen')
+        ])
+
+    bridge_cmd = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            '/cmd_vel_out@geometry_msgs/msg/Twist@gz.msgs.Twist',
+            '/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry',
+            '/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
+            '/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
+            '/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+        ],
+        parameters=[{'use_sim_time': use_sim_time}],
+        output='screen')
+
     start_rviz_cmd = Node(
         condition=IfCondition(use_rviz),
         package='rviz2',
@@ -155,7 +160,6 @@ def generate_launch_description():
         output='screen',
         arguments=['-d', rviz_config_file])
 
-    # Lanzamiento del nodo Cartographer para SLAM
     start_cartographer_cmd = Node(
         package='cartographer_ros',
         executable='cartographer_node',
@@ -164,23 +168,20 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
         arguments=['-configuration_directory', cartographer_config_dir,
                        '-configuration_basename', configuration_basename])
-    
-    # Lanzamiento del generador de mapas de ocupación
+
     start_ocupancy = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_share, 'launch', 'occupancy_grid.launch.py')
         ),
         launch_arguments={
-            'use_sim_time': use_sim_time, 
+            'use_sim_time': use_sim_time,
             'resolution': resolution,
             'publish_period_sec': publish_period_sec
         }.items(),
     )
 
-    # Creación de la descripción de lanzamiento y población de acciones
     ld = LaunchDescription()
 
-    # Declaración de las opciones de lanzamiento
     ld.add_action(declare_model_path_cmd)
     ld.add_action(declare_rviz_config_file_cmd)
     ld.add_action(declare_simulator_cmd)
@@ -194,10 +195,10 @@ def generate_launch_description():
     ld.add_action(declare_resolution)
     ld.add_action(decalare_publish_period)
 
-    # Adición de las acciones a ejecutar
-    ld.add_action(start_gazebo_server_cmd)
-    ld.add_action(start_gazebo_client_cmd)
+    ld.add_action(start_gz_sim_cmd)
     ld.add_action(start_robot_state_publisher_cmd)
+    ld.add_action(spawn_robot_cmd)
+    ld.add_action(bridge_cmd)
     ld.add_action(start_rviz_cmd)
     ld.add_action(start_cartographer_cmd)
     ld.add_action(start_ocupancy)

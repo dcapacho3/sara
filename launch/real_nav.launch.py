@@ -14,6 +14,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
 from launch.event_handlers.on_process_start import OnProcessStart
 from launch.actions import EmitEvent, RegisterEventHandler
 from launch_ros.events.lifecycle import ChangeState
@@ -131,8 +132,8 @@ def generate_launch_description():
     package='robot_state_publisher',
     executable='robot_state_publisher',
     namespace=namespace,
-    parameters=[{'use_sim_time': use_sim_time, 
-    'robot_description': Command(['xacro ', model])}],
+    parameters=[{'use_sim_time': use_sim_time,
+    'robot_description': ParameterValue(Command(['xacro ', model]), value_type=str)}],
     remappings=remappings,
     arguments=[default_model_path])
 
