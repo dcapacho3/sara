@@ -16,6 +16,7 @@ import numpy as np
 import yaml
 import threading
 import rclpy
+import tf2_ros
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 import sqlite3
@@ -581,20 +582,22 @@ class SecondWindow(ctk.CTkToplevel):
             
             self.executor = rclpy.executors.SingleThreadedExecutor()
             self.executor.add_node(self.node)
-            
-            # Configurar suscripciones
-            if self.mode == "Real":
-                #self.odom_subscriber = self.node.create_subscription(
-                #    PoseWithCovarianceStamped, 'amcl_pose', self.odom_callback, 10)
-                self.odom_subscriber = self.node.create_subscription(
-                    Odometry, 'odometry/filtered', self.odom_callback, 10)
-            else:
-                self.odom_subscriber = self.node.create_subscription(
-                    Odometry, 'odom', self.odom_callback, 10)
-            
+
+            # Map-frame pose for the robot marker (and for the position
+            # actually saved when registering a product's shelf location),
+            # looked up directly from tf2 (map -> base_footprint), same fix
+            # as base_navgui.py's map widget: subscribing to raw odom/
+            # odometry_filtered here saved product positions in odom frame
+            # (relative to wherever the robot booted) instead of the map
+            # frame the database expects, and amcl_pose alone updates too
+            # infrequently for a smooth live display.
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
+            self.pose_timer = self.node.create_timer(0.1, self.update_pose_from_tf)
+
             self.is_joy_on_subscriber = self.node.create_subscription(
                 String, 'is_joy_on', self.is_joy_on_callback, 10)
-            
+
             # Spin the executor in a loop
             while rclpy.ok() and not self.is_closing:
                 try:
@@ -936,22 +939,24 @@ class SecondWindow(ctk.CTkToplevel):
 
         return map_array, resolution, origin
 
-    def odom_callback(self, msg):
-        # Callback para procesar mensajes de odometría
-        # Actualiza la posición actual del robot y redibuja el mapa
-        if self.mode == "Real":
+    def update_pose_from_tf(self):
+        # Timer callback (0.1s, see init_ros): reads the robot's map-frame
+        # pose from tf2 and redraws the map, replacing the old odom-topic
+        # subscription that fed this in the wrong frame.
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                'map', 'base_footprint', rclpy.time.Time())
             self.current_pose = {
-                'x': msg.pose.pose.position.x,
-                'y': msg.pose.pose.position.y,
-                'orientation': self.get_yaw_from_quaternion(msg.pose.pose.orientation)
+                'x': transform.transform.translation.x,
+                'y': transform.transform.translation.y,
+                'orientation': self.get_yaw_from_quaternion(transform.transform.rotation)
             }
-        else:
-            self.current_pose = {
-                'x': msg.pose.pose.position.x,
-                'y': msg.pose.pose.position.y,
-                'orientation': self.get_yaw_from_quaternion(msg.pose.pose.orientation)
-            }
-        self.update_map()
+            self.update_map()
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException):
+            # map -> base_footprint not available yet: keep showing the
+            # last known pose rather than clearing it.
+            pass
 
     def is_joy_on_callback(self, msg):
         # Callback para procesar mensajes de estado del joystick
