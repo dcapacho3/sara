@@ -120,7 +120,7 @@ ENV WORKSPACE=/home/${USERNAME}/ros_ws
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /home/${USERNAME}/.bashrc && \
     echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> /home/${USERNAME}/.bashrc && \
     echo "export TURTLEBOT3_MODEL=waffle" >> /home/${USERNAME}/.bashrc && \
-    echo "export GZ_SIM_RESOURCE_PATH=${WORKSPACE}/src/sara/models:${WORKSPACE}/src/sara/worlds:\${GZ_SIM_RESOURCE_PATH}" >> /home/${USERNAME}/.bashrc
+    echo "export GZ_SIM_RESOURCE_PATH=${WORKSPACE}/src/sara:${WORKSPACE}/src/sara/sara_gazebo/models:${WORKSPACE}/src/sara/sara_gazebo/worlds:\${GZ_SIM_RESOURCE_PATH}" >> /home/${USERNAME}/.bashrc
 
 RUN mkdir -p /home/${USERNAME}/.rviz2 ${WORKSPACE}/src \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
