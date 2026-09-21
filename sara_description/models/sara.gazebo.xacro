@@ -108,6 +108,29 @@
     <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
       <topic>joint_states</topic>
     </plugin>
+
+    <!-- Required for any <sensor type="force_torque"> to actually produce
+         output (cart_weight_joint below) - it's a separate system from
+         Physics/Sensors, must be loaded explicitly like DiffDrive/JSP above. -->
+    <plugin filename="gz-sim-forcetorque-system" name="gz::sim::systems::ForceTorque">
+    </plugin>
+  </gazebo>
+
+  <!-- Weight sensor: cart_weight_joint is where the physical design's load
+       cell actually sits (base_weight = "TopeBascula", the load cell's
+       contact plate; base_platform = the fixed side it presses against per
+       the SolidWorks assembly). Reports the support-reaction wrench, i.e.
+       the weight of everything resting on base_weight. -->
+  <gazebo reference="cart_weight_joint">
+    <sensor name="cargo_scale" type="force_torque">
+      <always_on>true</always_on>
+      <update_rate>20</update_rate>
+      <topic>cart_weight_wrench</topic>
+      <force_torque>
+        <frame>child</frame>
+        <measure_direction>child_to_parent</measure_direction>
+      </force_torque>
+    </sensor>
   </gazebo>
 
   <gazebo reference="base_scan">

@@ -37,11 +37,18 @@
     </inertial>
   </link>
 
+  <!-- effort/velocity from the real TB3 Waffle Pi's DYNAMIXEL XM430-W210
+       datasheet (3.0 N.m stall torque at 12V, 77 RPM = 8.06 rad/s no-load).
+       Without an effort limit, gz-sim's DiffDrive velocity controller can
+       apply unlimited torque to hit the commanded wheel speed regardless of
+       load, which would make added cargo mass have no effect on the robot's
+       acceleration - the opposite of what Payload Interaction needs to show. -->
   <joint name="wheel_left_joint" type="continuous">
     <parent link="base_link"/>
     <child link="wheel_left_link"/>
     <origin xyz="0.0 0.144 0.023" rpy="-1.57 0 0"/>
     <axis xyz="0 0 1"/>
+    <limit effort="3.0" velocity="8.06"/>
   </joint>
 
   <link name="wheel_left_link">
@@ -74,6 +81,7 @@
     <child link="wheel_right_link"/>
     <origin xyz="0.0 -0.144 0.023" rpy="-1.57 0 0"/>
     <axis xyz="0 0 1"/>
+    <limit effort="3.0" velocity="8.06"/>
   </joint>
 
   <link name="wheel_right_link">
@@ -245,10 +253,16 @@
         <color rgba="0.86667 0.32157 0.15686 1"/>
       </material>
     </visual>
+    <!-- Box approximation of the mesh, not the mesh itself: dartsim (used by
+         the sara_jazzy container's default physics config) can't construct
+         collision geometry from a mesh yet ("Mesh construction from an SDF
+         has not been implemented yet for dartsim"), so a mesh collision here
+         silently disappears under it - dropped objects would fall straight
+         through. Sized/centered from the STL's own bounding box. -->
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin xyz="0.0013 0.0020 0.0225" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://sara_description/meshes/cart/base_cart.STL"/>
+        <box size="0.1635 0.2585 0.0450"/>
       </geometry>
     </collision>
   </link>
@@ -281,18 +295,32 @@
         <color rgba="0.55 0.55 0.55 1"/>
       </material>
     </visual>
+    <!-- Box approximation, see base_cart's collision comment above. Only the
+         bottom ~3cm (the structural floor), not the mesh's full 0.146m
+         height: that height is mostly hollow basket wall, and a full-height
+         solid box would fill the whole cavity, blocking anything from ever
+         reaching base_weight's pad inside it. -->
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin xyz="-0.0173 0.0000 0.015" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://sara_description/meshes/cart/Base_platform.STL"/>
+        <box size="0.3150 0.2655 0.03"/>
       </geometry>
     </collision>
   </link>
 
-  <joint name="cart_weight_joint" type="fixed">
+  <!-- Modeled as prismatic (not fixed) with a near-zero range and a stiff
+       spring: this is how the real load cell actually works (the contact
+       plate deflects a tiny amount under load, which is what the strain
+       gauge measures), and gz-sim's ForceTorque sensor system only attaches
+       to joints with an axis/DOF - a fixed joint has none, so the sensor
+       would silently produce no output. -->
+  <joint name="cart_weight_joint" type="prismatic">
     <parent link="base_platform"/>
     <child link="base_weight"/>
     <origin xyz="0.015647 0 0.0552" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.0005" upper="0.0005" effort="100" velocity="0.01"/>
+    <dynamics damping="50.0" friction="0.0"/>
   </joint>
 
   <link name="base_weight">
@@ -312,10 +340,11 @@
         <color rgba="1 1 1 1"/>
       </material>
     </visual>
+    <!-- Box approximation, see base_cart's collision comment above -->
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin xyz="-0.0017 0.0000 -0.0100" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://sara_description/meshes/cart/Base_weight.STL"/>
+        <box size="0.2280 0.1480 0.0200"/>
       </geometry>
     </collision>
   </link>

@@ -63,7 +63,13 @@ def generate_launch_description():
 
     # Nodo para evasion básica de obstáculos
     avoidance_node= Node( package='sara_safety',executable='naive_obstacle_avoidance.py')
-    
+
+    # Nodo que lee la báscula del carrito (cart_weight_wrench) y controla la
+    # velocidad máxima / bloqueo según el peso de carga detectado
+    weight_monitor_node = Node(
+        package='sara_safety',
+        executable='weight_monitor.py',
+        parameters=[{'use_sim_time': use_sim_time}])
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -74,5 +80,6 @@ def generate_launch_description():
         joy_node,
         speed_limit_node,
         teleop_node,
-        avoidance_node,    
+        avoidance_node,
+        weight_monitor_node,
     ])

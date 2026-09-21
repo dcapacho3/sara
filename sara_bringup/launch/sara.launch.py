@@ -137,6 +137,10 @@ def generate_launch_description():
       # gets wheel_left_joint/wheel_right_joint positions and can't broadcast
       # their TF, which is what made RViz report those links as disconnected.
       '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
+      # cart_weight_joint's force_torque sensor (sara.gazebo.xacro), consumed
+      # by sara_safety's weight_monitor.py to derive cargo weight and drive
+      # the speed de-rating / lockout controller.
+      '/cart_weight_wrench@geometry_msgs/msg/WrenchStamped[gz.msgs.Wrench',
     ],
     parameters=[{'use_sim_time': use_sim_time}],
     output='screen')
@@ -148,6 +152,15 @@ def generate_launch_description():
     name='rviz2',
     output='screen',
     arguments=['-d', rviz_config_file])
+
+  # Reads cart_weight_wrench (bridged above) and publishes cart_cargo_weight_kg /
+  # cart_speed_scale / cmd_vel_block_all. speed_limit.py and twist_mux (started
+  # separately via sara_safety/mux.launch.py) consume those.
+  weight_monitor_cmd = Node(
+    package='sara_safety',
+    executable='weight_monitor.py',
+    parameters=[{'use_sim_time': use_sim_time}],
+    output='screen')
 
   ld = LaunchDescription()
 
@@ -165,5 +178,6 @@ def generate_launch_description():
   ld.add_action(spawn_robot_cmd)
   ld.add_action(bridge_cmd)
   ld.add_action(start_rviz_cmd)
+  ld.add_action(weight_monitor_cmd)
 
   return ld
