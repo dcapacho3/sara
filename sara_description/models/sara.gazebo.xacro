@@ -1,10 +1,42 @@
 <?xml version="1.0"?>
-<robot name="turtlebot3_burger_sim" xmlns:xacro="http://ros.org/wiki/xacro">
+<robot name="sara_sim" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:arg name="laser_visual" default="false"/>
   <xacro:arg name="imu_visual"   default="false"/>
 
   <gazebo reference="base_link">
     <material>Gazebo/DarkGrey</material>
+  </gazebo>
+
+  <!-- sdformat's urdf2sdf multiplies each URDF <material><color> by 1.25 when
+       converting to SDF, which clips/shifts colors (e.g. 0.894 grey -> 1.0
+       white). These overrides set gz-sim's ambient/diffuse directly, bypassing
+       that conversion, so Gazebo matches the true SolidWorks colors used in
+       sara.urdf.xacro/RViz instead of the shifted ones. -->
+  <gazebo reference="base_cart">
+    <visual>
+      <material>
+        <ambient>0.86667 0.32157 0.15686 1</ambient>
+        <diffuse>0.86667 0.32157 0.15686 1</diffuse>
+      </material>
+    </visual>
+  </gazebo>
+
+  <gazebo reference="base_platform">
+    <visual>
+      <material>
+        <ambient>0.55 0.55 0.55 1</ambient>
+        <diffuse>0.55 0.55 0.55 1</diffuse>
+      </material>
+    </visual>
+  </gazebo>
+
+  <gazebo reference="base_weight">
+    <visual>
+      <material>
+        <ambient>1 1 1 1</ambient>
+        <diffuse>1 1 1 1</diffuse>
+      </material>
+    </visual>
   </gazebo>
 
   <gazebo reference="wheel_left_link">

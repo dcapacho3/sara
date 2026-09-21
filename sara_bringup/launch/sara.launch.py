@@ -132,6 +132,11 @@ def generate_launch_description():
       '/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
       '/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
       '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+      # gz-sim's JointStatePublisher system plugin (sara.gazebo.xacro) publishes
+      # this on the Gazebo side; without bridging it, robot_state_publisher never
+      # gets wheel_left_joint/wheel_right_joint positions and can't broadcast
+      # their TF, which is what made RViz report those links as disconnected.
+      '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
     ],
     parameters=[{'use_sim_time': use_sim_time}],
     output='screen')
