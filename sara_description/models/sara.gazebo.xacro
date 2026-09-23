@@ -39,9 +39,14 @@
     </visual>
   </gazebo>
 
+  <!-- mu1/mu2=0.7: rubber-on-concrete traction coefficient. Was 0.1
+       (near-ice) - re-applying this session's re-add-incrementally test:
+       0.1 low friction can cause wheel spin without real displacement
+       once wheel torque is bounded (near-infinite torque would otherwise
+       brute-force enough grip regardless). -->
   <gazebo reference="wheel_left_link">
-    <mu1>0.1</mu1>
-    <mu2>0.1</mu2>
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
     <kp>500000.0</kp>
     <kd>10.0</kd>
     <minDepth>0.001</minDepth>
@@ -51,8 +56,8 @@
   </gazebo>
 
   <gazebo reference="wheel_right_link">
-    <mu1>0.1</mu1>
-    <mu2>0.1</mu2>
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
     <kp>500000.0</kp>
     <kd>10.0</kd>
     <minDepth>0.001</minDepth>
@@ -151,7 +156,19 @@
           </horizontal>
         </scan>
         <range>
-          <min>0.120</min>
+          <!-- 0.120m is the real LDS-01's hardware floor, but the mount
+               position (base_scan) overlaps the shopping cart's own
+               support structure (base_platform, sara.urdf.xacro), which
+               the sensor genuinely sees at close range on both sim and
+               real hardware. Confirmed at this exact commit: with this
+               still at 0.120m, the robot never moved AT ALL (net
+               displacement 0.000m over 200+s) - collision_monitor (part
+               of Nav2 itself, not sara_safety) has no self-detection
+               filter of its own, only a height filter, so it very
+               plausibly treats the cart's own rods as an imminent
+               collision from t=0. Set generously at 0.4m (true
+               self-detection max measured previously: 0.186m). -->
+          <min>0.4</min>
           <max>3.5</max>
           <resolution>0.015</resolution>
         </range>
