@@ -31,9 +31,15 @@ twist_mux:
         topic   : cmd_vel_block_navigation
         timeout : 0.5
         priority: 75
-
-
-
-             
-   
+      # Proximity Stop (paper 2, sec 3.1): a human in the collaboration zone
+      # must zero commanded velocity regardless of source, same character as
+      # ISO/TS 15066's Safety-rated Monitored Stop - so it has to outrank
+      # every ordinary command source (avoidance/teleop/nav), not just
+      # navigation. Sits below block_all only because Payload Interaction's
+      # hard stop (sec 3.3) is explicitly defined to take precedence over
+      # everything else, including this one.
+      proximity_stop:
+        topic   : cmd_vel_proximity_stop
+        timeout : 0.5
+        priority: 220
 

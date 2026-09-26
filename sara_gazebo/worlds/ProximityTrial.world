@@ -1,0 +1,251 @@
+<?xml version="1.0" ?>
+<!-- TestEmpty.world plus one walking human actor for Proximity Stop /
+     Adaptive Separation trials (paper 2, docs/paper2_draft.tex sec 4/7).
+     The robot's own control path detects this actor via lidar (/scan),
+     not ground truth - see proximity_stop.py / adaptive_separation.py.
+     Ground-truth pose (this actor's own OdometryPublisher, below) is
+     published for trial instrumentation/logging only, never read by the
+     control path; an earlier version of this comment described ground
+     truth as the detection mechanism itself, which stopped being true
+     once Proximity Stop moved to lidar-based detection and was never
+     updated here - fixed now, not a design change.
+
+     First cut of this world (superseded, keeping the reasoning here since
+     it's a real dead end worth not repeating) used a primitive
+     cylinder+sphere body pose-driven at runtime via Gazebo's
+     /world/<world>/set_pose service, on the wrong assumption that this
+     container has no internet access to fetch a proper actor mesh from
+     Fuel. That assumption was wrong (confirmed: `curl
+     https://fuel.gazebosim.org/...` succeeds from inside sara_jazzy) and
+     the primitive-body approach was a real downgrade: set_pose's
+     round-trip latency caps updates at ~3.3Hz (choppy motion), and it
+     doesn't use gz-sim's own trajectory system at all.
+
+     RE-DERIVED 2026-09-25, three times, the last a design change not just a
+     number change. Attempt 1: closest approach 0.6m, designed around the
+     framework's original 1.2m zone radius; no longer reliably enters the
+     zone once it tightened to 0.3m (footprint-grounded, see
+     proximity_stop.py). Attempt 2: moved to x=0.15 - too close: the
+     robot's own physical body (base_platform's collision box) extends
+     forward to about x=0.076m at spawn, and a full walking-human skinned
+     mesh (Mingfei/actor from Fuel, gz-sim's own actor tutorial model) has
+     real leg width and swing - at this distance its legs visually passed
+     through the robot's own body, confirmed by direct observation in
+     Gazebo (no physics collision on the actor, so nothing stopped it).
+     Attempt 3: moved to x=0.20 - still overlapped. The actual problem
+     wasn't the specific distance, it was the mesh: a walking human's legs
+     occupy roughly ground-to-hip height, the same height range as the
+     robot's own low cart structure, so at any distance close enough to
+     register in a 0.3m near-contact zone, a full-body mesh with limb
+     articulation and no collision will visually intersect the robot to
+     some degree - there is no single "right" distance for the skinned
+     mesh case, confirmed by direct observation. Replaced the actor's skin/
+     animation with a plain cylinder link instead: same native gz-sim
+     <actor> element, same <script><trajectory> waypoint system, smooth
+     motion with no external polling (still avoiding the choppy
+     runtime-set_pose approach rejected above) - but geometrically exact
+     and simple to reason about instead of an articulated mesh silhouette
+     that varies frame to frame. Closest approach x=0.33 (cylinder radius
+     0.15m, so its near edge sits at x=0.18): 0.104m of clearance from the
+     robot's own front edge (0.076m) with zero ambiguity about limb
+     position, while its near edge is still 0.244m from the lidar -
+     comfortably inside the 0.3m zone (0.056m margin) and 0.044m above the
+     0.2m sensor floor, not relying on any animation-stride luck.
+
+     RE-DERIVED 2026-09-25 a fourth time, a mechanism change not just a
+     geometry change. Giving the cylinder+sphere real collision geometry
+     (previous attempt, still described above for the reasoning) did NOT
+     stop it visually passing through the robot - confirmed empirically
+     (robot's own /odom stayed at exactly (0,0,0) throughout, so no contact
+     force was ever actually applied to anything). Root cause: gz-sim's
+     <actor> entity type is kinematic by design - its pose is set directly
+     from <script><trajectory> waypoint interpolation every timestep,
+     regardless of what the physics engine computes, collision geometry or
+     not. This is inherent to the Actor entity type (built for scripted/
+     skeletal-animated characters), not a mistake in this file's SDF.
+     Replaced the <actor> with a real <model> instead (body cylinder + head
+     sphere on one link, same dimensions as the rejected actor attempt,
+     properly combined into a single rigid body with one inertial instead
+     of two separate links), driven by gz-sim's own documented
+     `gz-sim-velocity-control-system` plugin
+     (https://gazebosim.org/api/gazebo/6/classignition_1_1gazebo_1_1systems_1_1VelocityControl.html) -
+     a standard, continuous per-timestep velocity controller for a model
+     (not position-polling, so it keeps the smooth motion the rejected
+     runtime-set_pose approach lacked), and because it's a genuine physics-
+     integrated model this time, contact with the robot produces real
+     collision response. Driven externally by a small ROS 2 node
+     (`sara_safety/trials/run_proximity_trial.py` or a dedicated script)
+     publishing alternating forward/backward velocity on the bridged
+     `/model/human_actor/cmd_vel` topic - see proximity_trial.launch.py's
+     bridge_cmd for the bridge entry. Because contact is now physically
+     enforced rather than precomputed, the drive script does not need to
+     time a precise stop distance the way the waypoint trajectory did -
+     it can drive toward the robot and let physics arrest it at actual
+     contact, which is the whole point of switching to a dynamic model. -->
+
+<sdf version='1.7'>
+  <world name='default'>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"></plugin>
+
+    <light name='sun' type='directional'>
+      <cast_shadows>1</cast_shadows>
+      <pose>0 0 10 0 -0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name='ground_plane'>
+      <static>1</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>100</mu>
+                <mu2>50</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <cast_shadows>0</cast_shadows>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+            <specular>0.01 0.01 0.01 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- RE-DERIVED 2026-09-25, cylinder+ball, final approach. Two real
+         gz-sim bugs were found and fixed along the way, both worth
+         keeping on record since they'd bite again otherwise:
+         (1) A skinned actor's <trajectory> defaults to tension=0, a
+         Catmull-Rom spline Gazebo's own docs
+         (https://gazebosim.org/docs/harmonic/actors/) explicitly say
+         "may cause the animation to overshoot waypoints" - confirmed
+         exactly: observed overshooting both the near (0.33) and far
+         (3.0) waypoints. tension=1 fixes this ("will cause the animation
+         to stick to the waypoints").
+         (2) A plain-geometry <actor> (no <skin>/<animation> at all)
+         cannot use <script><trajectory> in gz-sim at all - confirmed via
+         a filed gz-sim issue (gazebosim/gz-sim#1932) hitting the exact
+         same "Actor skin mesh not found" warning seen here, and matching
+         upstream commentary that trajectory playback for non-skeletal
+         actors was a Gazebo Classic feature never carried into gz-sim.
+         So the cylinder+ball shape genuinely cannot be an <actor> at all
+         in this Gazebo version - not a configuration mistake, a real gap.
+
+         Given that, this is a plain <model> (not an actor), moved by
+         directly, repeatedly setting its pose via /world/default/set_pose
+         from an external script. This was tried once already and looked
+         broken (pose data updated correctly but the GUI never visually
+         moved) - root-caused via a second filed gz-sim issue
+         (gazebosim/gz-sim#1403): repeated set_pose calls faster than
+         roughly 5-10Hz overwhelm the GUI's SceneBroadcaster
+         deserialization, which then stalls permanently rather than
+         catching up. Fixed by explicitly pacing the driver script's calls
+         well under that threshold (see sara_safety/trials/ driver
+         script - at least ~0.3-0.5s between individual set_pose calls,
+         not back-to-back). Closest approach: pivot x=0.33, cylinder
+         radius 0.15m, so the near edge is at x=0.18 (0.33-0.15) - 0.104m
+         of clearance from the robot's verified front edge (0.076m, from
+         the actual STL mesh bounds) and 0.244m from the lidar (inside
+         the 0.3m zone, 0.056m margin). Verify via an actual screenshot,
+         not just topic data - that specific assumption has already been
+         wrong once for this exact mechanism. -->
+    <actor name='human_actor'>
+      <!-- Plain cylinder link, no skin/animation - smooth native actor
+           trajectory interpolation (not set_pose polling), no collision,
+           no physics. tension='1' below fixes the overshoot bug
+           confirmed earlier (default tension=0 is a Catmull-Rom spline
+           that overshoots waypoints). Testing directly whether the
+           earlier "requires a skin" conclusion was actually wrong - the
+           "Actor skin mesh not found" warning may be harmless (an
+           internal fallback-skin lookup, unrelated to trajectory
+           interpolation) rather than proof trajectory playback needs one. -->
+      <link name='link'>
+        <visual name='body_visual'>
+          <geometry>
+            <cylinder><radius>0.15</radius><length>1.5</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.8 0.4 0.1 1</ambient>
+            <diffuse>0.8 0.4 0.1 1</diffuse>
+          </material>
+        </visual>
+        <visual name='head_visual'>
+          <pose>0 0 0.87 0 0 0</pose>
+          <geometry><sphere><radius>0.12</radius></sphere></geometry>
+          <material>
+            <ambient>0.8 0.6 0.4 1</ambient>
+            <diffuse>0.8 0.6 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <script>
+        <loop>true</loop>
+        <delay_start>0.0</delay_start>
+        <auto_start>true</auto_start>
+        <trajectory id='0' type='walk' tension='1'>
+          <waypoint><time>0.000</time><pose>3.0 0 0.75 0 0 0</pose></waypoint>
+          <waypoint><time>1.907</time><pose>0.33 0 0.75 0 0 0</pose></waypoint>
+          <waypoint><time>2.907</time><pose>0.33 0 0.75 0 0 0</pose></waypoint>
+          <waypoint><time>4.814</time><pose>3.0 0 0.75 0 0 0</pose></waypoint>
+          <waypoint><time>5.814</time><pose>3.0 0 0.75 0 0 0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+    <!-- type='ode' here is a no-op, inherited from before this session -
+         gz-sim always runs dartsim regardless of this attribute. Do not
+         describe SARA's simulated physics as ODE anywhere (paper included)
+         on the strength of this tag. -->
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>1</shadows>
+    </scene>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <latitude_deg>0</latitude_deg>
+      <longitude_deg>0</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+  </world>
+</sdf>

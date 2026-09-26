@@ -166,9 +166,26 @@
                of Nav2 itself, not sara_safety) has no self-detection
                filter of its own, only a height filter, so it very
                plausibly treats the cart's own rods as an imminent
-               collision from t=0. Set generously at 0.4m (true
-               self-detection max measured previously: 0.186m). -->
-          <min>0.4</min>
+               collision from t=0.
+               RE-MEASURED 2026-09-25 (empirically, in TestEmpty.world with
+               this value temporarily at 0.120m so raw self-detection was
+               visible, not reused from the figure below): true
+               self-detection max is 0.172m, clustered at four ~10-degree
+               angle bands (roughly 50-70, 120-130, 230-240, 300-310 deg),
+               consistent with the basket's four mounting bars/corners, not
+               spread uniformly. The previous 0.4m floor here was a
+               "generous" round-up from an earlier, less precise 0.186m
+               figure - more than double the real self-detection ceiling,
+               which left Proximity Stop (sara_safety/scripts/
+               proximity_stop.py) almost no usable zone between this floor
+               and its own footprint-derived ~0.3m target radius. Set at
+               0.2m instead: a real ~0.03m margin (about 3 sigma above the
+               sensor's own 0.01m noise stddev) above the measured 0.172m
+               ceiling, not doubled for comfort. Re-verified against the
+               same Nav2 stuck-at-spawn regression this value's history is
+               about (self-detection mistaken for an obstacle) before
+               trusting it - see sara_nav2_testing_methodology memory. -->
+          <min>0.2</min>
           <max>3.5</max>
           <resolution>0.015</resolution>
         </range>

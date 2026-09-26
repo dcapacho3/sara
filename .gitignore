@@ -14,3 +14,16 @@ venv/
 *.swp
 *~
 .DS_Store
+
+# Paper 2 draft and its supporting figures/data - kept locally only, not
+# published or committed. Ignored (not deleted) specifically so a future
+# `git reset --hard` / `git clean -fd` can't wipe them again the way it did
+# on 2026-09-22 (they were untracked-and-not-ignored back then - that was
+# the actual root cause, not the reset command itself). If these ever are
+# meant to be committed, remove the relevant line below first - don't
+# `git add -f` around this file.
+docs/paper2_draft.tex
+docs/paper2_draft.md
+docs/paper_outline.md
+docs/figures/
+docs/data/

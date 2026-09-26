@@ -71,6 +71,18 @@ def generate_launch_description():
         executable='weight_monitor.py',
         parameters=[{'use_sim_time': use_sim_time}])
 
+    # Proximity Stop (paper 2, sec 3.1): detección por lidar (/scan), igual
+    # que avoidance_node - deployable tal cual en sim y en el robot real, no
+    # solo en un mundo de ensayo con un actor. Ver proximity_stop.py para
+    # la derivación de zone_radius_m/min_valid_range_m contra el baseline
+    # actual (robot_radius 0.28, lidar min range 0.4) y del cono frontal de
+    # detección (reemplaza la exclusión de 90 grados que no cubría todo un
+    # objeto estático cercano).
+    proximity_stop_node = Node(
+        package='sara_safety',
+        executable='proximity_stop.py',
+        parameters=[{'use_sim_time': use_sim_time}])
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time',
@@ -82,4 +94,5 @@ def generate_launch_description():
         teleop_node,
         avoidance_node,
         weight_monitor_node,
+        proximity_stop_node,
     ])
