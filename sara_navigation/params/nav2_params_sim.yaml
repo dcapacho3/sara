@@ -84,7 +84,21 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      # Found 2026-09-26 investigating intermittent navigation failures: a
+      # real, physically tight pinch point exists in the simulated store
+      # (confirmed via direct /scan ground truth at the exact failure
+      # location - nearest obstacle 0.38m away against this platform's own
+      # 0.29m footprint radius, ~9cm of genuine clearance, not a costmap or
+      # tuning artifact). Threading that gap carefully can legitimately
+      # take longer than 10s to cover 0.5m at this platform's low top speed
+      # (0.15 m/s) once steering corrections and re-planning are accounted
+      # for; 10.0 was never tuned against this platform's real scale, and
+      # was causing the progress checker to give up before a still-in-
+      # progress careful maneuver could complete, triggering unnecessary
+      # recovery cycles and occasionally exhausting the outer retry budget
+      # outright (a real observed navigation FAILURE, not just slowness).
+      # Doubled to give real, physically-tight sections enough time.
+      movement_time_allowance: 20.0
     
     general_goal_checker:
       stateful: True
@@ -112,12 +126,56 @@ controller_server:
       lookahead_time: 1.5
       rotate_to_heading_angular_vel: 0.9
       transform_tolerance: 0.1
-      use_velocity_scaled_lookahead_dist: false
+      # Found 2026-09-26: user watched the robot live and correctly
+      # diagnosed the corner-cutting itself (pure pursuit steers toward a
+      # lookahead "carrot" ahead on the path rather than tracking it
+      # point-by-point, so it geometrically cuts corners) - this was
+      # false, meaning lookahead_dist stayed fixed at 0.6m regardless of
+      # speed, so even creeping at 0.07-0.15 m/s right next to the tight
+      # corner, the controller still aimed a full 0.6m ahead and cut it
+      # just as hard as it would at speed. At this platform's real top
+      # speed (0.15 m/s) and lookahead_time (1.5s), velocity-scaled
+      # lookahead computes to 0.225m - below min_lookahead_dist (0.3m) at
+      # every real speed this robot can reach - so enabling this pins the
+      # effective lookahead near 0.3m across the whole speed range,
+      # roughly half the previous fixed 0.6m, tracking the path (and the
+      # clearance the planner already computed) much more closely through
+      # the tight corner instead of cutting inside it.
+      use_velocity_scaled_lookahead_dist: true
       min_approach_linear_velocity: 0.05
       use_approach_linear_velocity_scaling: true
-      max_allowed_time_to_collision: 1.0
+      # Found 2026-09-26 via direct log evidence ("RegulatedPurePursuitController
+      # detected collision ahead!" firing repeatedly, immediately before
+      # progress_checker tripped and recovery engaged, at a real aisle-mouth
+      # corner): 1.0s is the nav2 default, never tuned for this platform.
+      # This is the controller's own forward-collision simulation - the
+      # same kind of check as collision_monitor's time_before_collision
+      # below, just upstream in the controller instead of downstream in a
+      # separate safety layer. That parameter was already derived from this
+      # platform's real physics (detection latency ~44ms + stop time at
+      # measured worst-case deceleration ~31ms = ~75ms, rounded to 0.2s with
+      # margin) rather than left at a generic default. Applying the same
+      # reasoning here rather than inventing a new number: matched to 0.2s.
+      # At 1.0s, the controller was refusing to command any forward motion
+      # whenever its simulated trajectory grazed a lethal cell within a full
+      # second - far more conservative than this platform's real ~75ms
+      # stopping capability requires, and the direct cause of it repeatedly
+      # commanding nothing at this corner until progress_checker gave up.
+      max_allowed_time_to_collision: 0.2
       use_regulated_linear_velocity_scaling: true
-      use_cost_regulated_linear_velocity_scaling: false
+      # Found 2026-09-26, per Nav2's own RPP documentation: this was false.
+      # The doc's own stated reason to leave it false is when costmap cost
+      # is high "everywhere" - which WAS true here before today's
+      # inflation_radius fix (1.0m in a ~1.0m aisle blanketed the whole
+      # corridor in cost). With that corrected to 0.5m, the precondition
+      # for it misbehaving is gone, and this is exactly what the docs
+      # recommend for narrow-aisle navigation: a smooth, early speed
+      # reduction as cost rises near a wall/corner, ahead of the hard
+      # collision-ahead veto, rather than approaching at full commanded
+      # speed and hard-stopping at the last moment. To be verified live
+      # before trusting it - not assumed just because the docs recommend
+      # it in general.
+      use_cost_regulated_linear_velocity_scaling: true
       regulated_linear_scaling_min_radius: 0.9
       # Same fix as desired_linear_vel above: this was 0.25, also above the
       # real 0.15 m/s cap - the curvature-based speed regulation this
@@ -130,8 +188,12 @@ controller_server:
       use_rotate_to_heading: true
       rotate_to_heading_min_angle: 0.785
       max_angular_accel: 0.5
-      cost_scaling_dist: 0.3
-      cost_scaling_gain: 1.0
+      # Lowered from 0.3/1.0 (dead values while use_cost_regulated_linear_
+      # velocity_scaling was false above) to values proportionate to this
+      # platform's own 0.29m footprint radius, per Nav2's own RPP docs
+      # guidance for narrow-aisle tuning.
+      cost_scaling_dist: 0.2
+      cost_scaling_gain: 0.55
       inflation_cost_scaling_factor: 3.0
 
 controller_server_rclcpp_node:
@@ -161,7 +223,20 @@ local_costmap:
       plugins: ["obstacle_layer", "voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 1.0
+        # Found 2026-09-26 investigating intermittent navigation roughness
+        # (occasional Nav2 recovery-behavior triggering near an aisle
+        # mouth): this was 1.0m, over 3.5x the robot's own 0.28m radius,
+        # in a store whose narrowest aisles measure ~1.0-1.1m wide
+        # (occupancy grid, see proximity_stop.py). At that radius the
+        # inflated-cost gradient from both aisle walls fully overlaps
+        # across the entire narrowest aisle width, leaving no genuinely
+        # low-cost path through the center anywhere tight - worse right at
+        # an aisle mouth, where a perpendicular end-cap's own inflation
+        # adds on top. Lowered to 0.5m, just under half the narrowest
+        # aisle's width (matching the reasoning already used for the
+        # global costmap's own 0.55m below) so a real low-cost corridor
+        # exists through the center even in the tightest sections.
+        inflation_radius: 0.5
         cost_scaling_factor: 3.0
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
