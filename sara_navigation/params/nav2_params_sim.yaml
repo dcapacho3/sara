@@ -94,7 +94,16 @@ controller_server:
 
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.3
+      # Found 2026-09-26 while investigating a real navigation-roughness
+      # report: this was 0.3, above the platform's own actual enforced max
+      # (speed_limit.py's MAX_LINEAR_SPEED=0.15, the real, final clamp on
+      # every command after twist_mux). The controller was planning against
+      # a cruise speed it can never actually reach - every single command
+      # gets silently cut roughly in half by the time it's actually
+      # executed, with the controller never told this in its own model.
+      # Lowered to match the real cap exactly so the controller's own
+      # planning is self-consistent with what the platform can deliver.
+      desired_linear_vel: 0.15
       max_linear_accel: 0.9
       max_linear_decel: 0.9
       lookahead_dist: 0.6
@@ -110,7 +119,14 @@ controller_server:
       use_regulated_linear_velocity_scaling: true
       use_cost_regulated_linear_velocity_scaling: false
       regulated_linear_scaling_min_radius: 0.9
-      regulated_linear_scaling_min_speed: 0.25
+      # Same fix as desired_linear_vel above: this was 0.25, also above the
+      # real 0.15 m/s cap - the curvature-based speed regulation this
+      # parameter is supposed to floor was mathematically unable to ever
+      # take effect (the "reduced" speed near tight curves was still above
+      # what speed_limit.py lets through). Lowered to a real, meaningful
+      # floor below the actual cap - 0.08 m/s, giving genuine regulation
+      # range between this and the corrected 0.15 m/s cruise speed.
+      regulated_linear_scaling_min_speed: 0.08
       use_rotate_to_heading: true
       rotate_to_heading_min_angle: 0.785
       max_angular_accel: 0.5
@@ -324,8 +340,16 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.3, 0.0, 0.9]
-    min_velocity: [-0.3, 0.0, -0.9]
+    # Linear bounds corrected 2026-09-26, same reasoning as FollowPath's
+    # desired_linear_vel above: 0.3/-0.3 exceeded the platform's real
+    # enforced cap (speed_limit.py, 0.15 m/s), so this smoother was never
+    # actually limiting anything on the linear axis - the real clamp
+    # happened later, silently, at speed_limit.py. Angular bounds (0.9)
+    # were already below the real angular cap (1.82 rad/s) and are
+    # unaffected - Nav2 was already self-consistently more conservative
+    # than necessary there, not asking for something it can't have.
+    max_velocity: [0.15, 0.0, 0.9]
+    min_velocity: [-0.15, 0.0, -0.9]
     max_accel: [0.9, 0.0, 3.2]
     max_decel: [-0.9, 0.0, -3.2]
     odom_topic: "odom"

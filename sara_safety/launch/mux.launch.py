@@ -83,6 +83,17 @@ def generate_launch_description():
         executable='proximity_stop.py',
         parameters=[{'use_sim_time': use_sim_time}])
 
+    # Adaptive Separation (paper 2, sec 3.2): límite de velocidad continuo
+    # por lidar, se compone dentro de speed_limit.py vía min() (ver ese
+    # archivo), NO es otro tópico de twist_mux - un límite continuo
+    # dependiente de distancia no es un veto binario. d_min=zone_radius_m
+    # actual de Proximity Stop (0.3m) para que las dos zonas empalmen sin
+    # hueco - ver adaptive_separation.py para la derivación completa.
+    adaptive_separation_node = Node(
+        package='sara_safety',
+        executable='adaptive_separation.py',
+        parameters=[{'use_sim_time': use_sim_time}])
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time',
@@ -95,4 +106,5 @@ def generate_launch_description():
         avoidance_node,
         weight_monitor_node,
         proximity_stop_node,
+        adaptive_separation_node,
     ])

@@ -29,6 +29,19 @@ class TwistLimiter(Node):
         # que llegue la primera lectura real.
         self.speed_scale = 1.0
 
+        # Límite de velocidad continuo de Adaptive Separation
+        # (adaptive_separation.py, docs/paper2_draft.tex sec 3.2/4.1) - se
+        # compone con MAX_LINEAR_SPEED vía min(), NO como otro tópico de
+        # twist_mux: es un límite continuo dependiente de distancia, no un
+        # veto binario como Proximity Stop, así que encaja en la misma capa
+        # que el escalado por peso de Payload Interaction. Empieza en
+        # MAX_LINEAR_SPEED (sin restricción) hasta la primera lectura real,
+        # igual que speed_scale arriba - adaptive_separation.py también
+        # publica ese mismo valor (v_max_platform) cuando no hay nada en su
+        # rango válido, así que este arranque coincide con su propio estado
+        # de "zona despejada", no es una suposición separada.
+        self.adaptive_sep_v_max = self.MAX_LINEAR_SPEED
+
         # Crea suscripción para recibir comandos de velocidad
         # Se suscribe al tópico 'cmd_vel_in' para recibir mensajes Twist
         self.subscription = self.create_subscription(
@@ -44,6 +57,13 @@ class TwistLimiter(Node):
             self.scale_callback,
             10)
 
+        # Se suscribe al límite de velocidad publicado por adaptive_separation.py
+        self.adaptive_sep_subscription = self.create_subscription(
+            Float32,
+            'adaptive_separation_v_max_mps',
+            self.adaptive_sep_callback,
+            10)
+
         # Crea publicador para enviar comandos de velocidad limitados
         # Publica en el tópico 'cmd_vel_out' mensajes Twist modificados
         self.publisher = self.create_publisher(Twist, 'cmd_vel_out', 10)
@@ -51,14 +71,23 @@ class TwistLimiter(Node):
     def scale_callback(self, msg):
         self.speed_scale = max(0.0, min(1.0, msg.data))
 
+    def adaptive_sep_callback(self, msg):
+        self.adaptive_sep_v_max = max(0.0, msg.data)
+
     def listener_callback(self, msg):
         # Método para procesar los mensajes de velocidad recibidos
         # Crea un nuevo mensaje con velocidades limitadas según los máximos definidos
         limited_msg = Twist()
 
-        # Límites efectivos: los máximos configurados, reducidos por la carga
-        # detectada en la báscula (self.speed_scale, de weight_monitor.py)
-        max_linear = self.MAX_LINEAR_SPEED * self.speed_scale
+        # Límites efectivos: el menor entre el máximo escalado por carga
+        # (Payload Interaction, self.speed_scale) y el límite continuo de
+        # Adaptive Separation (self.adaptive_sep_v_max) - min(), no un
+        # tercer factor multiplicativo, porque Adaptive Separation ya
+        # calcula un límite absoluto en m/s (Ecuación 2 del paper), no un
+        # factor 0-1 que tendría que combinarse por escala. El límite
+        # angular solo lo escala la carga, Adaptive Separation no tiene
+        # opinión sobre giro en el sitio.
+        max_linear = min(self.MAX_LINEAR_SPEED * self.speed_scale, self.adaptive_sep_v_max)
         max_angular = self.MAX_ANGULAR_SPEED * self.speed_scale
 
         # Limita velocidad lineal usando max_linear
