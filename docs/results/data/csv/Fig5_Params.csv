@@ -1,0 +1,9 @@
+parameter,value,unit
+n_trials,70,count
+intercept_beta0,5.916203793018501,m/s^2
+slope_beta1,-0.1346629270344021,m/s^2/kg
+residual_standard_error,0.4268896728727216,m/s^2
+mean_tested_mass,9.357142857142858,kg
+Sxx,2690.071428571429,kg^2
+one_sided_t_critical_95,1.6675722806611726,dimensionless
+minimum_deceleration_floor,0.3,m/s^2
