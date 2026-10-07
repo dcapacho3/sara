@@ -1,14 +1,3 @@
-# Sim navigation entry point for SARA (Jazzy + new Gazebo). This is the
-# launch file base_navgui.py actually starts for simulated runs: world +
-# robot spawn + sensor bridge, Nav2 bringup on the existing supermarket map,
-# EKF sensor fusion, and an initial pose seed for AMCL.
-#
-# The old mecanum ros2_control path (agv_control_navigation.launch.py /
-# robot_control_navigation.py, forward_velocity_controller,
-# joint_state_broadcaster) is intentionally dropped: there was never a
-# controller_manager or <ros2_control> tag anywhere in this repo backing it,
-# confirmed by a repo-wide grep, so it was already dead code before this
-# migration, not something the migration broke.
 
 import os
 
@@ -149,6 +138,7 @@ def generate_launch_description():
             '/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
             '/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+            '/cart_weight_wrench@geometry_msgs/msg/WrenchStamped[gz.msgs.Wrench',
         ],
         parameters=[{'use_sim_time': use_sim_time}],
         output='screen')

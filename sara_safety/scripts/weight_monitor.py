@@ -1,53 +1,4 @@
 #!/usr/bin/env python3
-# Autor: David Capacho Parra
-# Descripción: Monitor de peso de carga para el robot SARA (simulación) -
-# implementación de "Payload Interaction" (paper 2, docs/paper2_draft.md §3.3):
-#
-#   "The platform must continuously monitor its carried payload. A
-#    rate-of-change in weight exceeding a soft threshold must trigger a
-#    warning or speed reduction, distinguishing an active human interaction
-#    (a shove, a lean, a person steadying themselves on the cart) from a
-#    normal item placement or removal. An absolute weight exceeding a hard
-#    threshold must trigger an immediate stop that takes precedence over
-#    every other mode, including Operator Override."
-#
-# Two independent triggers, matching that requirement exactly (not a
-# continuous magnitude-based ramp - the requirement is a rate condition and
-# an absolute condition, not a blended one):
-#   - SOFT (rate-of-change): |dW/dt| over a short window exceeds
-#     RATE_SOFT_THRESHOLD_KG_S -> temporary speed reduction (cart_speed_scale)
-#     held for a cooldown window, plus a warning flag (cart_payload_warning)
-#     for trial logging (Section 5's soft/hard detection-rate and
-#     false-positive-rate metrics need this to log against).
-#   - HARD (absolute): net weight >= HARD_LOCK_KG -> immediate stop via
-#     'cmd_vel_block_all' (twist_mux priority 255), the same mechanism
-#     mux_locker.py uses for the real HX711 sensor, so no twist_mux/mux.yaml
-#     changes are needed - the hard stop and the speed reduction both
-#     compose through the existing mux the way the paper's §4.1 describes:
-#     the hard stop is a priority-topic veto, the soft reduction is a scale
-#     factor applied downstream of the mux by speed_limit.py's filter node.
-#
-# Reads the Gazebo force_torque sensor at cart_weight_joint (the point where,
-# per the SolidWorks assembly, the real load cell sits: base_weight =
-# "TopeBascula", the load cell's contact plate; base_platform = the fixed
-# side it presses against), converts to a net cargo weight in kg (auto-tared
-# at startup to remove the structure's own weight, same as zeroing a real
-# scale).
-#
-# Thresholds (simulation parameters, not physical constants - Section 5's
-# planned trials, "simulated payload add/remove events at varying rates and
-# magnitudes," are exactly what would calibrate these; the values below are
-# reasoned starting points, not final calibrated numbers):
-#   - HARD_LOCK_KG = 20kg: the TurtleBot3 Waffle Pi's official structural
-#     max payload is 30kg (ROBOTIS datasheet); 20kg leaves a 10kg/33% margin
-#     below that, independent of the real prototype's 5kg-rated HX711 load
-#     cell (this describes the simulation, not the physical prototype).
-#   - RATE_SOFT_THRESHOLD_KG_S = 15kg/s: a normal gentle item placement
-#     (even a multi-kg item, lowered by hand over roughly half a second to a
-#     second) implies single-digit kg/s; a shove, lean, or a person
-#     steadying themselves on the cart applies force far more abruptly.
-#     15kg/s sits clearly above the former and below the latter as a
-#     starting point.
 
 import rclpy
 from rclpy.node import Node
@@ -69,13 +20,23 @@ SOFT_COOLDOWN_S = 2.0       # how long the reduction holds after the last trigge
 TARE_SAMPLES = 20
 RATE_SMOOTHING_SAMPLES = 3   # short moving average on dW/dt to reject sensor noise
 
+STABILITY_WINDOW = 8
+STABILITY_EPS_N = 0.03
+MAX_TARE_WAIT_SAMPLES = 400  # ~20s at the sensor's 20Hz update_rate
 
 class WeightMonitor(Node):
     def __init__(self):
         super().__init__('weight_monitor')
 
+        self.declare_parameter('startup_payload_kg', 0.0)
+        self.startup_payload_kg = float(
+            self.get_parameter('startup_payload_kg').value)
+
         self.tare_force_z = None
         self.tare_samples = []
+        self._pre_tare_window = []
+        self._pre_tare_count = 0
+        self._tare_stabilized = False
 
         self.prev_kg = None
         self.prev_stamp = None
@@ -101,15 +62,17 @@ class WeightMonitor(Node):
     def wrench_callback(self, msg: WrenchStamped):
         force_z = abs(msg.wrench.force.z)
 
-        # Auto-tara: promedia las primeras lecturas (peso propio de
-        # base_weight en reposo) para que el peso publicado sea solo la
-        # carga añadida, igual que se hace con una báscula real.
         if self.tare_force_z is None:
+            if not self._wait_for_stable_signal(force_z):
+                return
             self.tare_samples.append(force_z)
             if len(self.tare_samples) >= TARE_SAMPLES:
-                self.tare_force_z = sum(self.tare_samples) / len(self.tare_samples)
+                settled_force_z = sum(self.tare_samples) / len(self.tare_samples)
+                self.tare_force_z = settled_force_z - self.startup_payload_kg * GRAVITY
                 self.get_logger().info(
-                    f'Tare complete: baseline={self.tare_force_z:.3f}N '
+                    f'Tare complete: settled={settled_force_z:.3f}N, '
+                    f'startup_payload_kg={self.startup_payload_kg:.3f}kg -> '
+                    f'baseline={self.tare_force_z:.3f}N '
                     f'({self.tare_force_z / GRAVITY:.3f}kg)')
             return
 
@@ -128,6 +91,34 @@ class WeightMonitor(Node):
             block = Twist()
             block.angular.y = 0.005  # mantiene el tópico activo, ver mux_locker.py
             self.block_pub.publish(block)
+
+    def _wait_for_stable_signal(self, force_z: float) -> bool:
+        if self._tare_stabilized:
+            return True
+
+        self._pre_tare_count += 1
+        self._pre_tare_window.append(force_z)
+        if len(self._pre_tare_window) > STABILITY_WINDOW:
+            self._pre_tare_window.pop(0)
+
+        settled = (len(self._pre_tare_window) == STABILITY_WINDOW and
+                   (max(self._pre_tare_window) - min(self._pre_tare_window))
+                   < STABILITY_EPS_N)
+        timed_out = self._pre_tare_count >= MAX_TARE_WAIT_SAMPLES
+
+        if not (settled or timed_out):
+            return False
+
+        if timed_out and not settled:
+            self.get_logger().warn(
+                f'Tare: signal never settled within {MAX_TARE_WAIT_SAMPLES} '
+                f'samples (< {STABILITY_EPS_N}N over {STABILITY_WINDOW} '
+                'samples) - forcing tare from the last '
+                f'{len(self._pre_tare_window)} samples anyway to avoid '
+                'hanging.')
+
+        self._tare_stabilized = True
+        return True
 
     def _update_rate(self, net_kg: float, stamp: Time) -> float:
         """Smoothed dW/dt in kg/s from consecutive tared-weight samples."""

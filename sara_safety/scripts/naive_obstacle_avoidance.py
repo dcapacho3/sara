@@ -76,10 +76,10 @@ class ObstacleAvoidanceNode(Node):
        self.rear_angle_min = 3 * pi / 4  # 135 grados
        self.rear_angle_max = 5 * pi / 4  # 225 grados
 
-       # Parámetros de distancia
-       # Umbrales para detectar obstáculos relevantes
-       self.max_obstacle_distance = 0.4  # Distancia máxima para considerar un obstáculo
-       self.min_obstacle_distance = 0.25  # Distancia mínima para filtrar ruido
+       self.declare_parameter('max_obstacle_distance', 0.4)
+       self.declare_parameter('min_obstacle_distance', 0.25)
+       self.max_obstacle_distance = self.get_parameter('max_obstacle_distance').value  # Distancia máxima para considerar un obstáculo
+       self.min_obstacle_distance = self.get_parameter('min_obstacle_distance').value  # Distancia mínima para filtrar ruido
 
        # Variables de control
        # Estado actual del sistema de evasión

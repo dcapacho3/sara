@@ -27,3 +27,27 @@ docs/paper2_draft.md
 docs/paper_outline.md
 docs/figures/
 docs/data/
+docs/citations/
+docs/upload_v4/
+docs/*backup*
+docs/*.zip
+docs/paper2_draft.pdf
+docs/sn-jnl.cls
+docs/springer template/
+docs/guidelines_authors.md
+docs/overleaf_bundle*/
+# docs/img/ is NOT included above - those PNGs are tracked already and
+# unrelated to the paper draft (README/report images), not paper material.
+
+# Trial/test scripts and trial-only Gazebo worlds - kept locally only, same
+# rationale as the paper section above. These are how the paper's numbers
+# get produced, not what the framework itself needs to run; the actual
+# safety-mode nodes (proximity_stop.py, adaptive_separation.py,
+# adaptive_separation_comfort.py, weight_monitor.py,
+# naive_obstacle_avoidance.py, mux.launch.py, navagv.launch.py, the
+# sara_description xacro files, products.db) are deliberately NOT listed
+# here and stay tracked.
+sara_safety/trials/
+sara_gazebo/worlds/ProximityTrial*.world
+sara_gazebo/worlds/SpeedSweep_*.world
+sara_gazebo/worlds/TestEmpty.world
